@@ -1,0 +1,7 @@
+# Ignore Git and typical local files
+.git
+.gitignore
+vendor/
+*.log
+*.tmp
+.github/

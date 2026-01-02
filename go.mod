@@ -1,4 +1,4 @@
-module github.com/arturhoo/k8smultiarcher
+module github.com/programmerq/k8smultiarcher
 
 go 1.25.1
 

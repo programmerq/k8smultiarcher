@@ -1,6 +1,6 @@
 # k8smultiarcher
 
-## Description
+k8smultiarcher is a small utility for working with multi-architecture Kubernetes images/manifests. This repository includes Kubernetes manifests under `manifests/` and provides a Dockerfile and GitHub Actions workflow that builds multi-architecture images and publishes them to GitHub Container Registry (ghcr.io).
 
 ## Configuration
 
@@ -14,3 +14,17 @@
 | TLS_ENABLED          | Determines whether TLS is enabled. If set to 'true', TLS is enabled. |
 | CERT_PATH            | Sets the path to the TLS certificate. Used when TLS_ENABLED is set to 'true'. If not provided, the default is './certs/tls.crt'. |
 | KEY_PATH             | Sets the path to the TLS key. Used when TLS_ENABLED is set to 'true'. If not provided, the default is './certs/tls.key'. |
+
+## Container Images
+
+Multi-architecture container images are available at `ghcr.io/programmerq/k8smultiarcher` supporting linux/amd64, linux/arm64, and linux/arm/v7 platforms.
+
+Image tags:
+- `latest` - most recent version tag release
+- `main` - most recent build from the main branch
+- `<commit-sha>` - specific commit builds
+- `v*` - version tags (e.g., v1.0.0)
+
+## Deployment
+
+Reference Kubernetes manifests are available in the `manifests/` directory and use the GHCR image `ghcr.io/programmerq/k8smultiarcher:latest`.
