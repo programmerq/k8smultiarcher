@@ -101,5 +101,9 @@ webhooks:
         apiVersions: ["v1"]
         operations: ["CREATE"]
         resources: ["pods"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["daemonsets"]
     failurePolicy: Ignore
     sideEffects: None
