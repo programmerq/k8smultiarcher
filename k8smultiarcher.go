@@ -35,7 +35,7 @@ func mutateHandler(c *gin.Context) {
 
 	review, err := ProcessAdmissionReview(cache, platformConfig, body)
 	if err != nil {
-		slog.Error("failed to process pod admission review", "error", err)
+		slog.Error("failed to process admission review", "error", err)
 		c.JSON(500, gin.H{"error": "internal server error"})
 		return
 	}
