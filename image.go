@@ -36,28 +36,36 @@ func GetManifest(name string) (manifest.Manifest, error) {
 }
 
 func DoesImageSupportArm64(cache Cache, name string) bool {
-	if val, ok := cache.Get(name); ok {
+	return DoesImageSupportPlatform(cache, name, "linux/arm64")
+}
+
+// DoesImageSupportPlatform checks if an image supports a specific platform
+func DoesImageSupportPlatform(cache Cache, name string, platform string) bool {
+	cacheKey := name + ":" + platform
+	if val, ok := cache.Get(cacheKey); ok {
 		return val
 	}
 
 	m, err := GetManifest(name)
 	if err != nil {
 		slog.Error("failed to get manifest", "image", name, "error", err)
+		cache.Set(cacheKey, false)
 		return false
 	}
 
 	platforms, err := manifest.GetPlatformList(m)
 	if err != nil {
 		slog.Error("failed to get platforms for manifest", "image", name, "error", err)
+		cache.Set(cacheKey, false)
 		return false
 	}
 
 	for _, pl := range platforms {
-		if pl.String() == "linux/arm64" {
-			cache.Set(name, true)
+		if pl.String() == platform {
+			cache.Set(cacheKey, true)
 			return true
 		}
 	}
-	cache.Set(name, false)
+	cache.Set(cacheKey, false)
 	return false
 }

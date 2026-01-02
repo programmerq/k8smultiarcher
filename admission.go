@@ -9,6 +9,7 @@ import (
 
 	"github.com/mattbaird/jsonpatch"
 	admissionv1 "k8s.io/api/admission/v1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -19,23 +20,9 @@ var MultiarchToleration = corev1.Toleration{
 	Effect:   "NoSchedule",
 }
 
-func ProcessAdmissionReview(cache Cache, requestBody []byte) (*admissionv1.AdmissionReview, error) {
+func ProcessAdmissionReview(cache Cache, config *PlatformTolerationConfig, requestBody []byte) (*admissionv1.AdmissionReview, error) {
 	review, err := AdmissionReviewFromRequest(requestBody)
 	if err != nil {
-		return nil, err
-	}
-
-	if review.Request.Kind.Kind != "Pod" {
-		err := fmt.Errorf("got a request for a kind different than pod: %s", review.Request.Kind.Kind)
-		slog.Error("invalid request kind", "error", err)
-		return nil, err
-	}
-
-	obj := review.Request.Object
-	pod := &corev1.Pod{}
-	err = json.Unmarshal(obj.Raw, pod)
-	if err != nil {
-		slog.Error("failed to unmarshal pod", "error", err)
 		return nil, err
 	}
 
@@ -44,21 +31,65 @@ func ProcessAdmissionReview(cache Cache, requestBody []byte) (*admissionv1.Admis
 		Allowed: true,
 	}
 
-	if !DoesPodSupportArm64(cache, pod) {
-		review.Response = &response
-		return review, nil
-	}
+	var originalBytes []byte
+	var modifiedBytes []byte
 
-	AddMultiarchTolerationToPod(pod)
-	modifiedPod, err := json.Marshal(pod)
-	if err != nil {
-		slog.Error("failed to marshal pod", "error", err)
+	switch review.Request.Kind.Kind {
+	case "Pod":
+		obj := review.Request.Object
+		pod := &corev1.Pod{}
+		err = json.Unmarshal(obj.Raw, pod)
+		if err != nil {
+			slog.Error("failed to unmarshal pod", "error", err)
+			return nil, err
+		}
+
+		supportedPlatforms := GetPodSupportedPlatforms(cache, config, pod)
+		if len(supportedPlatforms) == 0 {
+			review.Response = &response
+			return review, nil
+		}
+
+		AddTolerationsToPod(config, pod, supportedPlatforms)
+		modifiedBytes, err = json.Marshal(pod)
+		if err != nil {
+			slog.Error("failed to marshal pod", "error", err)
+			return nil, err
+		}
+		originalBytes = obj.Raw
+
+	case "DaemonSet":
+		obj := review.Request.Object
+		daemonSet := &appsv1.DaemonSet{}
+		err = json.Unmarshal(obj.Raw, daemonSet)
+		if err != nil {
+			slog.Error("failed to unmarshal daemonset", "error", err)
+			return nil, err
+		}
+
+		supportedPlatforms := GetPodTemplateSupportedPlatforms(cache, config, &daemonSet.Spec.Template)
+		if len(supportedPlatforms) == 0 {
+			review.Response = &response
+			return review, nil
+		}
+
+		AddTolerationsToPodTemplate(config, &daemonSet.Spec.Template, supportedPlatforms)
+		modifiedBytes, err = json.Marshal(daemonSet)
+		if err != nil {
+			slog.Error("failed to marshal daemonset", "error", err)
+			return nil, err
+		}
+		originalBytes = obj.Raw
+
+	default:
+		err := fmt.Errorf("got a request for an unsupported kind: %s", review.Request.Kind.Kind)
+		slog.Error("invalid request kind", "error", err)
 		return nil, err
 	}
 
-	patch, err := jsonpatch.CreatePatch(obj.Raw, modifiedPod)
+	patch, err := jsonpatch.CreatePatch(originalBytes, modifiedBytes)
 	if err != nil {
-		slog.Error("failed to create patch for pod", "error", err)
+		slog.Error("failed to create patch", "error", err)
 		return nil, err
 	}
 
@@ -112,4 +143,58 @@ func AddMultiarchTolerationToPod(pod *corev1.Pod) {
 		return
 	}
 	pod.Spec.Tolerations = append(pod.Spec.Tolerations, MultiarchToleration)
+}
+
+// GetPodSupportedPlatforms returns platforms supported by all images in the pod
+func GetPodSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, pod *corev1.Pod) []string {
+	return getContainersSupportedPlatforms(cache, config, pod.Spec.Containers)
+}
+
+// GetPodTemplateSupportedPlatforms returns platforms supported by all images in the pod template
+func GetPodTemplateSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, template *corev1.PodTemplateSpec) []string {
+	return getContainersSupportedPlatforms(cache, config, template.Spec.Containers)
+}
+
+// getContainersSupportedPlatforms checks which configured platforms are supported by all container images
+func getContainersSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, containers []corev1.Container) []string {
+	configuredPlatforms := config.GetPlatforms()
+	supportedPlatforms := []string{}
+
+	for _, platform := range configuredPlatforms {
+		allSupport := true
+		var errs []error
+		for _, container := range containers {
+			if !DoesImageSupportPlatform(cache, container.Image, platform) {
+				allSupport = false
+				errs = append(errs, fmt.Errorf("image %s lacks %s support", container.Image, platform))
+			}
+		}
+		if allSupport {
+			supportedPlatforms = append(supportedPlatforms, platform)
+		} else if len(errs) > 0 {
+			slog.Info("containers have images without platform support", "platform", platform, "error", errors.Join(errs...))
+		}
+	}
+
+	return supportedPlatforms
+}
+
+// AddTolerationsToPod adds tolerations for supported platforms to a pod
+func AddTolerationsToPod(config *PlatformTolerationConfig, pod *corev1.Pod, supportedPlatforms []string) {
+	tolerations := config.GetTolerationsForPlatforms(supportedPlatforms)
+	for _, toleration := range tolerations {
+		if !slices.Contains(pod.Spec.Tolerations, toleration) {
+			pod.Spec.Tolerations = append(pod.Spec.Tolerations, toleration)
+		}
+	}
+}
+
+// AddTolerationsToPodTemplate adds tolerations for supported platforms to a pod template
+func AddTolerationsToPodTemplate(config *PlatformTolerationConfig, template *corev1.PodTemplateSpec, supportedPlatforms []string) {
+	tolerations := config.GetTolerationsForPlatforms(supportedPlatforms)
+	for _, toleration := range tolerations {
+		if !slices.Contains(template.Spec.Tolerations, toleration) {
+			template.Spec.Tolerations = append(template.Spec.Tolerations, toleration)
+		}
+	}
 }
