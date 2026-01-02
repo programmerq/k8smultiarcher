@@ -137,6 +137,108 @@ func TestGetPodSupportedPlatforms(t *testing.T) {
 	}
 }
 
+func TestGetPodSupportedPlatforms_WithInitContainers(t *testing.T) {
+	cache := NewInMemoryCache(cacheSizeDefault)
+	cache.Set("image1:linux/arm64", true)
+	cache.Set("image1:linux/amd64", true)
+	cache.Set("image2:linux/arm64", true)
+	cache.Set("image2:linux/amd64", false)
+	cache.Set("init-image:linux/arm64", true)
+	cache.Set("init-image:linux/amd64", false)
+
+	config := &PlatformTolerationConfig{
+		Mappings: []PlatformTolerationMapping{
+			{
+				Platform: "linux/arm64",
+				Toleration: corev1.Toleration{
+					Key:      "arch",
+					Value:    "arm64",
+					Operator: corev1.TolerationOpEqual,
+					Effect:   "NoSchedule",
+				},
+			},
+			{
+				Platform: "linux/amd64",
+				Toleration: corev1.Toleration{
+					Key:      "arch",
+					Value:    "amd64",
+					Operator: corev1.TolerationOpEqual,
+					Effect:   "NoSchedule",
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		pod      *corev1.Pod
+		expected []string
+	}{
+		{
+			name: "pod with multi-arch container but arm64-only init container",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Image: "image1"},
+					},
+					InitContainers: []corev1.Container{
+						{Image: "init-image"},
+					},
+				},
+			},
+			expected: []string{"linux/arm64"}, // Only arm64 supported due to init container
+		},
+		{
+			name: "pod with ephemeral container",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Image: "image1"},
+					},
+					EphemeralContainers: []corev1.EphemeralContainer{
+						{
+							EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+								Image: "image2",
+							},
+						},
+					},
+				},
+			},
+			expected: []string{"linux/arm64"}, // Only arm64 due to ephemeral container
+		},
+		{
+			name: "pod with all container types",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{Image: "image1"},
+					},
+					InitContainers: []corev1.Container{
+						{Image: "image1"},
+					},
+					EphemeralContainers: []corev1.EphemeralContainer{
+						{
+							EphemeralContainerCommon: corev1.EphemeralContainerCommon{
+								Image: "image1",
+							},
+						},
+					},
+				},
+			},
+			expected: []string{"linux/arm64", "linux/amd64"}, // All containers support both
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GetPodSupportedPlatforms(cache, config, tt.pod)
+			if !slices.Equal(got, tt.expected) {
+				t.Errorf("GetPodSupportedPlatforms() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestAddTolerationsToPod(t *testing.T) {
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{

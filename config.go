@@ -72,7 +72,8 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 			Effect   string `json:"effect"`
 		}
 		if err := json.Unmarshal([]byte(jsonConfig), &mappings); err != nil {
-			slog.Error("failed to parse PLATFORM_TOLERATIONS", "error", err)
+			slog.Error("failed to parse PLATFORM_TOLERATIONS, ignoring JSON config", "error", err)
+			// Fall through to check simple configuration
 		} else {
 			for _, m := range mappings {
 				config.Mappings = append(config.Mappings, PlatformTolerationMapping{
@@ -84,6 +85,12 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 						Effect:   validateEffect(m.Effect),
 					},
 				})
+			}
+			// If JSON was successfully parsed, skip simple configuration
+			// to avoid mixing configuration methods
+			if len(config.Mappings) > 0 {
+				slog.Info("loaded platform-toleration mappings from JSON", "count", len(config.Mappings))
+				goto applyDefaults
 			}
 		}
 	}
@@ -106,8 +113,10 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 				Effect:   effect,
 			},
 		})
+		slog.Info("loaded platform-toleration mapping from simple env vars")
 	}
 
+applyDefaults:
 	// Use default if no configuration provided
 	if len(config.Mappings) == 0 {
 		config.Mappings = append(config.Mappings, defaultPlatformTolerationMapping)

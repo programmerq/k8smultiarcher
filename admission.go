@@ -147,12 +147,32 @@ func AddMultiarchTolerationToPod(pod *corev1.Pod) {
 
 // GetPodSupportedPlatforms returns platforms supported by all images in the pod
 func GetPodSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, pod *corev1.Pod) []string {
-	return getContainersSupportedPlatforms(cache, config, pod.Spec.Containers)
+	// Combine all container types: regular, init, and ephemeral
+	allContainers := make([]corev1.Container, 0, len(pod.Spec.Containers)+len(pod.Spec.InitContainers)+len(pod.Spec.EphemeralContainers))
+	allContainers = append(allContainers, pod.Spec.Containers...)
+	allContainers = append(allContainers, pod.Spec.InitContainers...)
+	for _, ec := range pod.Spec.EphemeralContainers {
+		allContainers = append(allContainers, corev1.Container{
+			Name:  ec.Name,
+			Image: ec.Image,
+		})
+	}
+	return getContainersSupportedPlatforms(cache, config, allContainers)
 }
 
 // GetPodTemplateSupportedPlatforms returns platforms supported by all images in the pod template
 func GetPodTemplateSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, template *corev1.PodTemplateSpec) []string {
-	return getContainersSupportedPlatforms(cache, config, template.Spec.Containers)
+	// Combine all container types: regular, init, and ephemeral
+	allContainers := make([]corev1.Container, 0, len(template.Spec.Containers)+len(template.Spec.InitContainers)+len(template.Spec.EphemeralContainers))
+	allContainers = append(allContainers, template.Spec.Containers...)
+	allContainers = append(allContainers, template.Spec.InitContainers...)
+	for _, ec := range template.Spec.EphemeralContainers {
+		allContainers = append(allContainers, corev1.Container{
+			Name:  ec.Name,
+			Image: ec.Image,
+		})
+	}
+	return getContainersSupportedPlatforms(cache, config, allContainers)
 }
 
 // getContainersSupportedPlatforms checks which configured platforms are supported by all container images
