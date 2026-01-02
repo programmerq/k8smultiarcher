@@ -30,6 +30,32 @@ var defaultPlatformTolerationMapping = PlatformTolerationMapping{
 	},
 }
 
+// validateOperator validates and returns a toleration operator, defaulting to Equal if invalid
+func validateOperator(operator string) corev1.TolerationOperator {
+	if operator == "" {
+		return corev1.TolerationOpEqual
+	}
+	op := corev1.TolerationOperator(operator)
+	if op != corev1.TolerationOpEqual && op != corev1.TolerationOpExists {
+		slog.Error("invalid toleration operator, using default Equal", "operator", operator)
+		return corev1.TolerationOpEqual
+	}
+	return op
+}
+
+// validateEffect validates and returns a taint effect, defaulting to NoSchedule if invalid
+func validateEffect(effect string) corev1.TaintEffect {
+	if effect == "" {
+		return corev1.TaintEffectNoSchedule
+	}
+	eff := corev1.TaintEffect(effect)
+	if eff != corev1.TaintEffectNoSchedule && eff != corev1.TaintEffectPreferNoSchedule && eff != corev1.TaintEffectNoExecute {
+		slog.Error("invalid toleration effect, using default NoSchedule", "effect", effect)
+		return corev1.TaintEffectNoSchedule
+	}
+	return eff
+}
+
 // LoadPlatformTolerationConfig loads the configuration from environment variables
 func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 	config := &PlatformTolerationConfig{
@@ -49,33 +75,13 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 			slog.Error("failed to parse PLATFORM_TOLERATIONS", "error", err)
 		} else {
 			for _, m := range mappings {
-				operator := corev1.TolerationOpEqual
-				if m.Operator != "" {
-					op := corev1.TolerationOperator(m.Operator)
-					// Validate operator
-					if op != corev1.TolerationOpEqual && op != corev1.TolerationOpExists {
-						slog.Error("invalid toleration operator, using default Equal", "operator", m.Operator)
-					} else {
-						operator = op
-					}
-				}
-				effect := corev1.TaintEffectNoSchedule
-				if m.Effect != "" {
-					eff := corev1.TaintEffect(m.Effect)
-					// Validate effect
-					if eff != corev1.TaintEffectNoSchedule && eff != corev1.TaintEffectPreferNoSchedule && eff != corev1.TaintEffectNoExecute {
-						slog.Error("invalid toleration effect, using default NoSchedule", "effect", m.Effect)
-					} else {
-						effect = eff
-					}
-				}
 				config.Mappings = append(config.Mappings, PlatformTolerationMapping{
 					Platform: m.Platform,
 					Toleration: corev1.Toleration{
 						Key:      m.Key,
 						Value:    m.Value,
-						Operator: operator,
-						Effect:   effect,
+						Operator: validateOperator(m.Operator),
+						Effect:   validateEffect(m.Effect),
 					},
 				})
 			}
@@ -85,26 +91,8 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 	// Check for simple single toleration configuration (backward compatible)
 	if key := os.Getenv("TOLERATION_KEY"); key != "" {
 		value := os.Getenv("TOLERATION_VALUE")
-		operator := corev1.TolerationOpEqual
-		if op := os.Getenv("TOLERATION_OPERATOR"); op != "" {
-			opVal := corev1.TolerationOperator(op)
-			// Validate operator
-			if opVal != corev1.TolerationOpEqual && opVal != corev1.TolerationOpExists {
-				slog.Error("invalid toleration operator, using default Equal", "operator", op)
-			} else {
-				operator = opVal
-			}
-		}
-		effect := corev1.TaintEffectNoSchedule
-		if eff := os.Getenv("TOLERATION_EFFECT"); eff != "" {
-			effVal := corev1.TaintEffect(eff)
-			// Validate effect
-			if effVal != corev1.TaintEffectNoSchedule && effVal != corev1.TaintEffectPreferNoSchedule && effVal != corev1.TaintEffectNoExecute {
-				slog.Error("invalid toleration effect, using default NoSchedule", "effect", eff)
-			} else {
-				effect = effVal
-			}
-		}
+		operator := validateOperator(os.Getenv("TOLERATION_OPERATOR"))
+		effect := validateEffect(os.Getenv("TOLERATION_EFFECT"))
 		platform := "linux/arm64"
 		if p := os.Getenv("TOLERATION_PLATFORM"); p != "" {
 			platform = p

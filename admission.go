@@ -173,7 +173,7 @@ func getContainersSupportedPlatforms(cache Cache, config *PlatformTolerationConf
 		}
 		if allSupport {
 			supportedPlatforms = append(supportedPlatforms, platform)
-		} else if len(errs) > 0 {
+		} else {
 			slog.Info("containers have images without platform support", "platform", platform, "error", errors.Join(errs...))
 		}
 	}
