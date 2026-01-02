@@ -181,22 +181,22 @@ func getContainersSupportedPlatforms(cache Cache, config *PlatformTolerationConf
 	return supportedPlatforms
 }
 
-// AddTolerationsToPod adds tolerations for supported platforms to a pod
-func AddTolerationsToPod(config *PlatformTolerationConfig, pod *corev1.Pod, supportedPlatforms []string) {
-	tolerations := config.GetTolerationsForPlatforms(supportedPlatforms)
-	for _, toleration := range tolerations {
-		if !slices.Contains(pod.Spec.Tolerations, toleration) {
-			pod.Spec.Tolerations = append(pod.Spec.Tolerations, toleration)
+// addTolerationsToSlice adds tolerations for supported platforms to the given tolerations slice.
+func addTolerationsToSlice(config *PlatformTolerationConfig, supportedPlatforms []string, tolerations *[]corev1.Toleration) {
+	newTolerations := config.GetTolerationsForPlatforms(supportedPlatforms)
+	for _, toleration := range newTolerations {
+		if !slices.Contains(*tolerations, toleration) {
+			*tolerations = append(*tolerations, toleration)
 		}
 	}
 }
 
+// AddTolerationsToPod adds tolerations for supported platforms to a pod
+func AddTolerationsToPod(config *PlatformTolerationConfig, pod *corev1.Pod, supportedPlatforms []string) {
+	addTolerationsToSlice(config, supportedPlatforms, &pod.Spec.Tolerations)
+}
+
 // AddTolerationsToPodTemplate adds tolerations for supported platforms to a pod template
 func AddTolerationsToPodTemplate(config *PlatformTolerationConfig, template *corev1.PodTemplateSpec, supportedPlatforms []string) {
-	tolerations := config.GetTolerationsForPlatforms(supportedPlatforms)
-	for _, toleration := range tolerations {
-		if !slices.Contains(template.Spec.Tolerations, toleration) {
-			template.Spec.Tolerations = append(template.Spec.Tolerations, toleration)
-		}
-	}
+	addTolerationsToSlice(config, supportedPlatforms, &template.Spec.Tolerations)
 }
