@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for building a static Go binary and producing a minimal runtime image.
-ARG GO_VERSION=1.20
+ARG GO_VERSION=1.25.1
 FROM golang:${GO_VERSION}-alpine AS builder
 
 # Install git (for 'go get' if needed) and ca-certificates
