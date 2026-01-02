@@ -20,9 +20,10 @@ k8smultiarcher is a small utility for working with multi-architecture Kubernetes
 Multi-architecture container images are available at `ghcr.io/programmerq/k8smultiarcher` supporting linux/amd64, linux/arm64, and linux/arm/v7 platforms.
 
 Image tags:
-- `latest` - most recent build from the main branch
+- `latest` - most recent version tag release
+- `main` - most recent build from the main branch
 - `<commit-sha>` - specific commit builds
-- `v*` - version tags
+- `v*` - version tags (e.g., v1.0.0)
 
 ## Deployment
 
