@@ -1,16 +1,29 @@
 # k8smultiarcher
 
-k8smultiarcher is a small utility for working with multi-architecture Kubernetes images/manifests. This repository includes Kubernetes manifests under `manifests/` and now provides a minimal Dockerfile and a GitHub Actions workflow that builds multi-architecture images and publishes them to GitHub Container Registry (ghcr.io).
+k8smultiarcher is a small utility for working with multi-architecture Kubernetes images/manifests. This repository includes Kubernetes manifests under `manifests/` and provides a Dockerfile and GitHub Actions workflow that builds multi-architecture images and publishes them to GitHub Container Registry (ghcr.io).
 
-Considerations for deploying:
-- The included manifests reference images hosted under a `kind.local` registry. Before deploying to a real cluster replace image references in `manifests/` with the GHCR image (for example: `ghcr.io/programmerq/k8smultiarcher:latest`) or load the image into your local Kind cluster (e.g., `kind load docker-image ghcr.io/programmerq/k8smultiarcher:latest`).
-- The Dockerfile assumes a Go project and will build a static binary. If this repository is not Go, modify the Dockerfile to use your project's build steps.
-- The workflow uses the repository's GITHUB_TOKEN and sets `packages: write` permission so the action can push to GHCR. You can also create a personal access token with package write permission if you need cross-repository pushes.
+## Configuration
 
-How the workflow works (quick):
-- On push to `main` or on tag `v*`, the workflow builds for linux/amd64, linux/arm64, and linux/arm/v7 and pushes multi-arch images to ghcr.io under your account.
-- Image tags pushed: `latest` and the commit SHA.
+| Environment Variable | Description |
+| -------------------- | ----------- |
+| CACHE_SIZE           | Sets the size of the cache. If not provided, a default size is used. |
+| CACHE                | Determines the type of cache to use. Can be either 'inmemory' or 'redis'. If not provided or set to 'inmemory', an in-memory cache is used. |
+| REDIS_ADDR           | Sets the address of the Redis server. Used when CACHE is set to 'redis'. If not provided, a default address is used. |
+| HOST                 | Sets the host for the server. |
+| PORT                 | Sets the port for the server. If not provided, the default is '8443' if TLS is enabled, '8080' otherwise. |
+| TLS_ENABLED          | Determines whether TLS is enabled. If set to 'true', TLS is enabled. |
+| CERT_PATH            | Sets the path to the TLS certificate. Used when TLS_ENABLED is set to 'true'. If not provided, the default is './certs/tls.crt'. |
+| KEY_PATH             | Sets the path to the TLS key. Used when TLS_ENABLED is set to 'true'. If not provided, the default is './certs/tls.key'. |
 
-If you'd like me to:
-- Adjust the Dockerfile for another language/tooling (Node, Python, Java, etc.), tell me which one and I will update it.
-- Replace the images in `manifests/` to use the GHCR name automatically, I can create a small patch that updates those files.
+## Container Images
+
+Multi-architecture container images are available at `ghcr.io/programmerq/k8smultiarcher` supporting linux/amd64, linux/arm64, and linux/arm/v7 platforms.
+
+Image tags:
+- `latest` - most recent build from the main branch
+- `<commit-sha>` - specific commit builds
+- `v*` - version tags
+
+## Deployment
+
+Reference Kubernetes manifests are available in the `manifests/` directory and use the GHCR image `ghcr.io/programmerq/k8smultiarcher:latest`.

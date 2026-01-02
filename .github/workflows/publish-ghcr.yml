@@ -1,5 +1,10 @@
 name: Build and Publish multi-arch image to GHCR
 
+# This workflow builds multi-architecture container images for linux/amd64, linux/arm64, and linux/arm/v7.
+# On push to 'main', it publishes images tagged as 'latest' and the commit SHA.
+# On push of version tags (v*), it publishes images with the tag name.
+# Images are published to ghcr.io under the repository owner's namespace.
+
 # Trigger on pushes to main and on new tags
 on:
   push:

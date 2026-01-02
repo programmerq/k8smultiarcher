@@ -4,5 +4,4 @@
 vendor/
 *.log
 *.tmp
-Dockerfile
 .github/

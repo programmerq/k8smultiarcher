@@ -46,7 +46,7 @@ spec:
     spec:
       containers:
         - name: k8smultiarcher
-          image: kind.local/k8smultiarcher:latest
+          image: ghcr.io/programmerq/k8smultiarcher:latest
           imagePullPolicy: IfNotPresent
           env:
             - name: TLS_ENABLED
