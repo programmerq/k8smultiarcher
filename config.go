@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
-	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -52,11 +51,23 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 			for _, m := range mappings {
 				operator := corev1.TolerationOpEqual
 				if m.Operator != "" {
-					operator = corev1.TolerationOperator(m.Operator)
+					op := corev1.TolerationOperator(m.Operator)
+					// Validate operator
+					if op != corev1.TolerationOpEqual && op != corev1.TolerationOpExists {
+						slog.Error("invalid toleration operator, using default Equal", "operator", m.Operator)
+					} else {
+						operator = op
+					}
 				}
 				effect := corev1.TaintEffectNoSchedule
 				if m.Effect != "" {
-					effect = corev1.TaintEffect(m.Effect)
+					eff := corev1.TaintEffect(m.Effect)
+					// Validate effect
+					if eff != corev1.TaintEffectNoSchedule && eff != corev1.TaintEffectPreferNoSchedule && eff != corev1.TaintEffectNoExecute {
+						slog.Error("invalid toleration effect, using default NoSchedule", "effect", m.Effect)
+					} else {
+						effect = eff
+					}
 				}
 				config.Mappings = append(config.Mappings, PlatformTolerationMapping{
 					Platform: m.Platform,
@@ -76,11 +87,23 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 		value := os.Getenv("TOLERATION_VALUE")
 		operator := corev1.TolerationOpEqual
 		if op := os.Getenv("TOLERATION_OPERATOR"); op != "" {
-			operator = corev1.TolerationOperator(op)
+			opVal := corev1.TolerationOperator(op)
+			// Validate operator
+			if opVal != corev1.TolerationOpEqual && opVal != corev1.TolerationOpExists {
+				slog.Error("invalid toleration operator, using default Equal", "operator", op)
+			} else {
+				operator = opVal
+			}
 		}
 		effect := corev1.TaintEffectNoSchedule
 		if eff := os.Getenv("TOLERATION_EFFECT"); eff != "" {
-			effect = corev1.TaintEffect(eff)
+			effVal := corev1.TaintEffect(eff)
+			// Validate effect
+			if effVal != corev1.TaintEffectNoSchedule && effVal != corev1.TaintEffectPreferNoSchedule && effVal != corev1.TaintEffectNoExecute {
+				slog.Error("invalid toleration effect, using default NoSchedule", "effect", eff)
+			} else {
+				effect = effVal
+			}
 		}
 		platform := "linux/arm64"
 		if p := os.Getenv("TOLERATION_PLATFORM"); p != "" {
@@ -124,7 +147,8 @@ func (c *PlatformTolerationConfig) GetTolerationsForPlatforms(supportedPlatforms
 	tolerations := []corev1.Toleration{}
 	for _, mapping := range c.Mappings {
 		for _, platform := range supportedPlatforms {
-			if strings.EqualFold(mapping.Platform, platform) {
+			// Use exact string comparison since OCI platforms are case-sensitive
+			if mapping.Platform == platform {
 				tolerations = append(tolerations, mapping.Toleration)
 				break
 			}

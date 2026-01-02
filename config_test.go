@@ -92,6 +92,35 @@ func TestLoadPlatformTolerationConfig_JSON(t *testing.T) {
 	}
 }
 
+func TestLoadPlatformTolerationConfig_JSON_InvalidOperatorAndEffect(t *testing.T) {
+	jsonConfig := `[
+		{
+			"platform": "linux/arm64",
+			"key": "arch",
+			"value": "arm64",
+			"operator": "InvalidOperator",
+			"effect": "InvalidEffect"
+		}
+	]`
+	os.Setenv("PLATFORM_TOLERATIONS", jsonConfig)
+	defer os.Unsetenv("PLATFORM_TOLERATIONS")
+
+	config := LoadPlatformTolerationConfig()
+
+	if len(config.Mappings) != 1 {
+		t.Errorf("Expected 1 mapping, got %d", len(config.Mappings))
+	}
+
+	// Should default to Equal and NoSchedule
+	if config.Mappings[0].Toleration.Operator != corev1.TolerationOpEqual {
+		t.Errorf("Expected operator to default to Equal, got %v", config.Mappings[0].Toleration.Operator)
+	}
+
+	if config.Mappings[0].Toleration.Effect != corev1.TaintEffectNoSchedule {
+		t.Errorf("Expected effect to default to NoSchedule, got %v", config.Mappings[0].Toleration.Effect)
+	}
+}
+
 func TestGetPlatforms(t *testing.T) {
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{

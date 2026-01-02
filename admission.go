@@ -167,6 +167,8 @@ func getContainersSupportedPlatforms(cache Cache, config *PlatformTolerationConf
 			if !DoesImageSupportPlatform(cache, container.Image, platform) {
 				allSupport = false
 				errs = append(errs, fmt.Errorf("image %s lacks %s support", container.Image, platform))
+				// Early exit since we know this platform isn't supported by all containers
+				break
 			}
 		}
 		if allSupport {
