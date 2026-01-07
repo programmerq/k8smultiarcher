@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -14,8 +15,8 @@ import (
 func TestProcessAdmissionReview_DaemonSet(t *testing.T) {
 	cache := NewInMemoryCache(cacheSizeDefault)
 	// Set up cache with multi-platform support
-	cache.Set("nginx:latest:linux/arm64", true)
-	cache.Set("nginx:latest:linux/amd64", true)
+	cache.Set("nginx:latest:linux/arm64", true, 0)
+	cache.Set("nginx:latest:linux/amd64", true, 0)
 
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{
@@ -98,7 +99,7 @@ func TestProcessAdmissionReview_DaemonSet(t *testing.T) {
 		t.Fatalf("Failed to marshal admission review: %v", err)
 	}
 
-	result, err := ProcessAdmissionReview(cache, config, requestBody)
+	result, err := ProcessAdmissionReview(context.Background(), cache, config, requestBody)
 	if err != nil {
 		t.Fatalf("ProcessAdmissionReview failed: %v", err)
 	}
@@ -140,7 +141,7 @@ func TestProcessAdmissionReview_DaemonSet(t *testing.T) {
 func TestProcessAdmissionReview_Pod(t *testing.T) {
 	cache := NewInMemoryCache(cacheSizeDefault)
 	// Set up cache with arm64 support
-	cache.Set("nginx:latest:linux/arm64", true)
+	cache.Set("nginx:latest:linux/arm64", true, 0)
 
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{
@@ -203,7 +204,7 @@ func TestProcessAdmissionReview_Pod(t *testing.T) {
 		t.Fatalf("Failed to marshal admission review: %v", err)
 	}
 
-	result, err := ProcessAdmissionReview(cache, config, requestBody)
+	result, err := ProcessAdmissionReview(context.Background(), cache, config, requestBody)
 	if err != nil {
 		t.Fatalf("ProcessAdmissionReview failed: %v", err)
 	}

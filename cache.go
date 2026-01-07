@@ -16,7 +16,7 @@ const (
 
 type Cache interface {
 	Get(key string) (bool, bool)
-	Set(key string, value bool)
+	Set(key string, value bool, ttl time.Duration)
 }
 
 type InMemoryCache struct {
@@ -41,8 +41,13 @@ func (c InMemoryCache) Get(key string) (bool, bool) {
 	return boolVal, true
 }
 
-func (c *InMemoryCache) Set(key string, value bool) {
-	err := c.cache.Set(key, value)
+func (c *InMemoryCache) Set(key string, value bool, ttl time.Duration) {
+	var err error
+	if ttl > 0 {
+		err = c.cache.SetWithExpire(key, value, ttl)
+	} else {
+		err = c.cache.Set(key, value)
+	}
 	if err != nil {
 		slog.Error("failed to set key on InMemoryCache", "error", err)
 	}
@@ -70,10 +75,10 @@ func (c RedisCache) Get(key string) (bool, bool) {
 	return val, true
 }
 
-func (c *RedisCache) Set(key string, value bool) {
+func (c *RedisCache) Set(key string, value bool, ttl time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err := c.client.Set(ctx, key, value, 0).Err()
+	err := c.client.Set(ctx, key, value, ttl).Err()
 	if err != nil {
 		slog.Error("failed to set key on RedisCache", "error", err)
 	}

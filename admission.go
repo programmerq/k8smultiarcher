@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/mattbaird/jsonpatch"
+	"github.com/regclient/regclient/config"
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,7 +22,7 @@ var MultiarchToleration = corev1.Toleration{
 	Effect:   "NoSchedule",
 }
 
-func ProcessAdmissionReview(cache Cache, config *PlatformTolerationConfig, requestBody []byte) (*admissionv1.AdmissionReview, error) {
+func ProcessAdmissionReview(ctx context.Context, cache Cache, config *PlatformTolerationConfig, requestBody []byte) (*admissionv1.AdmissionReview, error) {
 	review, err := AdmissionReviewFromRequest(requestBody)
 	if err != nil {
 		return nil, err
@@ -44,7 +46,8 @@ func ProcessAdmissionReview(cache Cache, config *PlatformTolerationConfig, reque
 			return nil, err
 		}
 
-		supportedPlatforms := GetPodSupportedPlatforms(cache, config, pod)
+		registryHosts := GetRegistryHosts(ctx, pod.Namespace, &pod.Spec)
+		supportedPlatforms := GetPodSupportedPlatforms(ctx, cache, config, pod, registryHosts)
 		if len(supportedPlatforms) == 0 {
 			review.Response = &response
 			return review, nil
@@ -67,7 +70,8 @@ func ProcessAdmissionReview(cache Cache, config *PlatformTolerationConfig, reque
 			return nil, err
 		}
 
-		supportedPlatforms := GetPodTemplateSupportedPlatforms(cache, config, &daemonSet.Spec.Template)
+		registryHosts := GetRegistryHosts(ctx, daemonSet.Namespace, &daemonSet.Spec.Template.Spec)
+		supportedPlatforms := GetPodTemplateSupportedPlatforms(ctx, cache, config, &daemonSet.Spec.Template, registryHosts)
 		if len(supportedPlatforms) == 0 {
 			review.Response = &response
 			return review, nil
@@ -124,10 +128,10 @@ func AdmissionReviewFromRequest(body []byte) (*admissionv1.AdmissionReview, erro
 	return &review, nil
 }
 
-func DoesPodSupportArm64(cache Cache, pod *corev1.Pod) bool {
+func DoesPodSupportArm64(ctx context.Context, cache Cache, pod *corev1.Pod, registryHosts []config.Host) bool {
 	var errs []error
 	for _, container := range pod.Spec.Containers {
-		if !DoesImageSupportArm64(cache, container.Image) {
+		if !DoesImageSupportArm64(ctx, cache, container.Image, registryHosts) {
 			errs = append(errs, fmt.Errorf("image %s lacks arm64 support", container.Image))
 		}
 	}
@@ -146,7 +150,7 @@ func AddMultiarchTolerationToPod(pod *corev1.Pod) {
 }
 
 // GetPodSupportedPlatforms returns platforms supported by all images in the pod
-func GetPodSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, pod *corev1.Pod) []string {
+func GetPodSupportedPlatforms(ctx context.Context, cache Cache, config *PlatformTolerationConfig, pod *corev1.Pod, registryHosts []config.Host) []string {
 	// Combine all container types: regular, init, and ephemeral
 	allContainers := make([]corev1.Container, 0, len(pod.Spec.Containers)+len(pod.Spec.InitContainers)+len(pod.Spec.EphemeralContainers))
 	allContainers = append(allContainers, pod.Spec.Containers...)
@@ -157,11 +161,11 @@ func GetPodSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, pod
 			Image: ec.Image,
 		})
 	}
-	return getContainersSupportedPlatforms(cache, config, allContainers)
+	return getContainersSupportedPlatforms(ctx, cache, config, allContainers, registryHosts)
 }
 
 // GetPodTemplateSupportedPlatforms returns platforms supported by all images in the pod template
-func GetPodTemplateSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, template *corev1.PodTemplateSpec) []string {
+func GetPodTemplateSupportedPlatforms(ctx context.Context, cache Cache, config *PlatformTolerationConfig, template *corev1.PodTemplateSpec, registryHosts []config.Host) []string {
 	// Combine all container types: regular, init, and ephemeral
 	allContainers := make([]corev1.Container, 0, len(template.Spec.Containers)+len(template.Spec.InitContainers)+len(template.Spec.EphemeralContainers))
 	allContainers = append(allContainers, template.Spec.Containers...)
@@ -172,11 +176,11 @@ func GetPodTemplateSupportedPlatforms(cache Cache, config *PlatformTolerationCon
 			Image: ec.Image,
 		})
 	}
-	return getContainersSupportedPlatforms(cache, config, allContainers)
+	return getContainersSupportedPlatforms(ctx, cache, config, allContainers, registryHosts)
 }
 
 // getContainersSupportedPlatforms checks which configured platforms are supported by all container images
-func getContainersSupportedPlatforms(cache Cache, config *PlatformTolerationConfig, containers []corev1.Container) []string {
+func getContainersSupportedPlatforms(ctx context.Context, cache Cache, config *PlatformTolerationConfig, containers []corev1.Container, registryHosts []config.Host) []string {
 	configuredPlatforms := config.GetPlatforms()
 	supportedPlatforms := []string{}
 
@@ -184,7 +188,7 @@ func getContainersSupportedPlatforms(cache Cache, config *PlatformTolerationConf
 		allSupport := true
 		var errs []error
 		for _, container := range containers {
-			if !DoesImageSupportPlatform(cache, container.Image, platform) {
+			if !DoesImageSupportPlatform(ctx, cache, container.Image, platform, registryHosts) {
 				allSupport = false
 				errs = append(errs, fmt.Errorf("image %s lacks %s support", container.Image, platform))
 				// Early exit since we know this platform isn't supported by all containers

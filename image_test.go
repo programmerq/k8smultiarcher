@@ -1,11 +1,14 @@
 package main
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestDoesImageSupportArm64(t *testing.T) {
 	cache := NewInMemoryCache(cacheSizeDefault)
-	cache.Set("image_with_arm_support:linux/arm64", true)
-	cache.Set("image_without_arm_support:linux/arm64", false)
+	cache.Set("image_with_arm_support:linux/arm64", true, 0)
+	cache.Set("image_without_arm_support:linux/arm64", false, 0)
 
 	type args struct {
 		cache Cache
@@ -35,7 +38,7 @@ func TestDoesImageSupportArm64(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := DoesImageSupportArm64(tt.args.cache, tt.args.name); got != tt.want {
+			if got := DoesImageSupportArm64(context.Background(), tt.args.cache, tt.args.name, nil); got != tt.want {
 				t.Errorf("DoesImageSupportArm64() = %v, want %v", got, tt.want)
 			}
 		})
@@ -44,10 +47,10 @@ func TestDoesImageSupportArm64(t *testing.T) {
 
 func TestDoesImageSupportPlatform(t *testing.T) {
 	cache := NewInMemoryCache(cacheSizeDefault)
-	cache.Set("multi_arch_image:linux/arm64", true)
-	cache.Set("multi_arch_image:linux/amd64", true)
-	cache.Set("arm_only_image:linux/arm64", true)
-	cache.Set("arm_only_image:linux/amd64", false)
+	cache.Set("multi_arch_image:linux/arm64", true, 0)
+	cache.Set("multi_arch_image:linux/amd64", true, 0)
+	cache.Set("arm_only_image:linux/arm64", true, 0)
+	cache.Set("arm_only_image:linux/amd64", false, 0)
 
 	type args struct {
 		cache    Cache
@@ -98,7 +101,7 @@ func TestDoesImageSupportPlatform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := DoesImageSupportPlatform(tt.args.cache, tt.args.name, tt.args.platform); got != tt.want {
+			if got := DoesImageSupportPlatform(context.Background(), tt.args.cache, tt.args.name, tt.args.platform, nil); got != tt.want {
 				t.Errorf("DoesImageSupportPlatform() = %v, want %v", got, tt.want)
 			}
 		})

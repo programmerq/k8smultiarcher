@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"slices"
 	"testing"
 
@@ -46,11 +47,11 @@ func TestAddMultiarchTolerationToPod(t *testing.T) {
 
 func TestGetPodSupportedPlatforms(t *testing.T) {
 	cache := NewInMemoryCache(cacheSizeDefault)
-	cache.Set("image1:linux/arm64", true)
-	cache.Set("image1:linux/amd64", true)
-	cache.Set("image2:linux/arm64", true)
-	cache.Set("image2:linux/amd64", false)
-	cache.Set("image3:linux/arm64", false)
+	cache.Set("image1:linux/arm64", true, 0)
+	cache.Set("image1:linux/amd64", true, 0)
+	cache.Set("image2:linux/arm64", true, 0)
+	cache.Set("image2:linux/amd64", false, 0)
+	cache.Set("image3:linux/arm64", false, 0)
 
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{
@@ -129,7 +130,7 @@ func TestGetPodSupportedPlatforms(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetPodSupportedPlatforms(cache, config, tt.pod)
+			got := GetPodSupportedPlatforms(context.Background(), cache, config, tt.pod, nil)
 			if !slices.Equal(got, tt.expected) {
 				t.Errorf("GetPodSupportedPlatforms() = %v, want %v", got, tt.expected)
 			}
@@ -139,12 +140,12 @@ func TestGetPodSupportedPlatforms(t *testing.T) {
 
 func TestGetPodSupportedPlatforms_WithInitContainers(t *testing.T) {
 	cache := NewInMemoryCache(cacheSizeDefault)
-	cache.Set("image1:linux/arm64", true)
-	cache.Set("image1:linux/amd64", true)
-	cache.Set("image2:linux/arm64", true)
-	cache.Set("image2:linux/amd64", false)
-	cache.Set("init-image:linux/arm64", true)
-	cache.Set("init-image:linux/amd64", false)
+	cache.Set("image1:linux/arm64", true, 0)
+	cache.Set("image1:linux/amd64", true, 0)
+	cache.Set("image2:linux/arm64", true, 0)
+	cache.Set("image2:linux/amd64", false, 0)
+	cache.Set("init-image:linux/arm64", true, 0)
+	cache.Set("init-image:linux/amd64", false, 0)
 
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{
@@ -231,7 +232,7 @@ func TestGetPodSupportedPlatforms_WithInitContainers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetPodSupportedPlatforms(cache, config, tt.pod)
+			got := GetPodSupportedPlatforms(context.Background(), cache, config, tt.pod, nil)
 			if !slices.Equal(got, tt.expected) {
 				t.Errorf("GetPodSupportedPlatforms() = %v, want %v", got, tt.expected)
 			}
