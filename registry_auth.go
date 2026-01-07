@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/regclient/regclient/config"
@@ -32,6 +33,14 @@ var (
 	kubeClientErr  error
 )
 
+// GetRegistryHosts returns registry host configurations derived from Kubernetes
+// image pull secrets referenced by the given PodSpec in the specified namespace.
+// It uses the in-cluster Kubernetes client to resolve imagePullSecrets and
+// fetch the associated Secret resources, converting them into []config.Host
+// entries. If namespace is empty, podSpec is nil, or the Kubernetes client is
+// unavailable, it returns nil. When no applicable image pull secrets are found
+// or all lookups fail, it returns an empty slice. The provided context is used
+// for all Kubernetes API calls.
 func GetRegistryHosts(ctx context.Context, namespace string, podSpec *corev1.PodSpec) []config.Host {
 	if namespace == "" || podSpec == nil {
 		return nil
@@ -184,11 +193,11 @@ func decodeDockerAuth(encoded string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	parts := string(decoded)
-	for i := 0; i < len(parts); i++ {
-		if parts[i] == ':' {
-			return parts[:i], parts[i+1:], nil
-		}
+
+	// Use strings.SplitN to properly handle colons in passwords
+	parts := strings.SplitN(string(decoded), ":", 2)
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid auth format, expected format username:password")
 	}
-	return "", "", errors.New("invalid auth format")
+	return parts[0], parts[1], nil
 }

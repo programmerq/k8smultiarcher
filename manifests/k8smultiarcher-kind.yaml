@@ -17,6 +17,11 @@ metadata:
   name: k8smultiarcher
   labels:
     app.kubernetes.io/instance: k8smultiarcher
+# Note: This ClusterRole grants cluster-wide "get" access to secrets and serviceaccounts.
+# This is required for the webhook to resolve imagePullSecrets from any namespace where
+# pods are being admitted. The webhook only reads secrets of type kubernetes.io/dockerconfigjson
+# and kubernetes.io/dockercfg for registry authentication purposes. Consider using namespace-scoped
+# Roles if you want to restrict the webhook to specific namespaces.
 rules:
   - apiGroups: [""]
     resources: ["secrets", "serviceaccounts"]
@@ -143,4 +148,4 @@ webhooks:
     failurePolicy: Ignore
     reinvocationPolicy: IfNeeded
     sideEffects: None
-    timeoutSeconds: 10
+    timeoutSeconds: 30

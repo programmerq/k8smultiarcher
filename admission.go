@@ -51,7 +51,12 @@ func ProcessAdmissionReview(
 			return nil, err
 		}
 
-		registryHosts := GetRegistryHosts(ctx, pod.Namespace, &pod.Spec)
+		// Use review.Request.Namespace as it's the authoritative source, falling back to pod.Namespace
+		namespace := review.Request.Namespace
+		if namespace == "" {
+			namespace = pod.Namespace
+		}
+		registryHosts := GetRegistryHosts(ctx, namespace, &pod.Spec)
 		supportedPlatforms := GetPodSupportedPlatforms(ctx, cache, config, pod, registryHosts)
 		if len(supportedPlatforms) == 0 {
 			review.Response = &response
@@ -75,7 +80,12 @@ func ProcessAdmissionReview(
 			return nil, err
 		}
 
-		registryHosts := GetRegistryHosts(ctx, daemonSet.Namespace, &daemonSet.Spec.Template.Spec)
+		// Use review.Request.Namespace as it's the authoritative source, falling back to daemonSet.Namespace
+		namespace := review.Request.Namespace
+		if namespace == "" {
+			namespace = daemonSet.Namespace
+		}
+		registryHosts := GetRegistryHosts(ctx, namespace, &daemonSet.Spec.Template.Spec)
 		supportedPlatforms := GetPodTemplateSupportedPlatforms(ctx, cache, config, &daemonSet.Spec.Template, registryHosts)
 		if len(supportedPlatforms) == 0 {
 			review.Response = &response
