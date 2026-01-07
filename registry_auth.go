@@ -78,7 +78,12 @@ func getKubeClient() (kubernetes.Interface, error) {
 	return kubeClient, kubeClientErr
 }
 
-func collectImagePullSecrets(ctx context.Context, client kubernetes.Interface, namespace string, podSpec *corev1.PodSpec) []string {
+func collectImagePullSecrets(
+	ctx context.Context,
+	client kubernetes.Interface,
+	namespace string,
+	podSpec *corev1.PodSpec,
+) []string {
 	secretNames := map[string]struct{}{}
 	for _, ref := range podSpec.ImagePullSecrets {
 		if ref.Name != "" {
@@ -92,7 +97,15 @@ func collectImagePullSecrets(ctx context.Context, client kubernetes.Interface, n
 	}
 	serviceAccount, err := client.CoreV1().ServiceAccounts(namespace).Get(ctx, serviceAccountName, metav1.GetOptions{})
 	if err != nil {
-		slog.Debug("failed to load service account", "serviceAccount", serviceAccountName, "namespace", namespace, "error", err)
+		slog.Debug(
+			"failed to load service account",
+			"serviceAccount",
+			serviceAccountName,
+			"namespace",
+			namespace,
+			"error",
+			err,
+		)
 		return mapKeys(secretNames)
 	}
 	for _, ref := range serviceAccount.ImagePullSecrets {

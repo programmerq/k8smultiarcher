@@ -55,7 +55,13 @@ func DoesImageSupportArm64(ctx context.Context, cache Cache, name string, hosts 
 }
 
 // DoesImageSupportPlatform checks if an image supports a specific platform
-func DoesImageSupportPlatform(ctx context.Context, cache Cache, name string, platform string, hosts []config.Host) bool {
+func DoesImageSupportPlatform(
+	ctx context.Context,
+	cache Cache,
+	name string,
+	platform string,
+	hosts []config.Host,
+) bool {
 	cacheKey := name + ":" + platform
 	if val, ok := cache.Get(cacheKey); ok {
 		return val

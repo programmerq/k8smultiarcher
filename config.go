@@ -49,7 +49,9 @@ func validateEffect(effect string) corev1.TaintEffect {
 		return corev1.TaintEffectNoSchedule
 	}
 	eff := corev1.TaintEffect(effect)
-	if eff != corev1.TaintEffectNoSchedule && eff != corev1.TaintEffectPreferNoSchedule && eff != corev1.TaintEffectNoExecute {
+	if eff != corev1.TaintEffectNoSchedule &&
+		eff != corev1.TaintEffectPreferNoSchedule &&
+		eff != corev1.TaintEffectNoExecute {
 		slog.Error("invalid toleration effect, using default NoSchedule", "effect", effect)
 		return corev1.TaintEffectNoSchedule
 	}
@@ -120,10 +122,24 @@ applyDefaults:
 	// Use default if no configuration provided
 	if len(config.Mappings) == 0 {
 		config.Mappings = append(config.Mappings, defaultPlatformTolerationMapping)
-		slog.Info("using default platform-toleration mapping", "platform", defaultPlatformTolerationMapping.Platform, "key", defaultPlatformTolerationMapping.Toleration.Key)
+		slog.Info(
+			"using default platform-toleration mapping",
+			"platform",
+			defaultPlatformTolerationMapping.Platform,
+			"key",
+			defaultPlatformTolerationMapping.Toleration.Key,
+		)
 	} else {
 		for _, m := range config.Mappings {
-			slog.Info("configured platform-toleration mapping", "platform", m.Platform, "key", m.Toleration.Key, "value", m.Toleration.Value)
+			slog.Info(
+				"configured platform-toleration mapping",
+				"platform",
+				m.Platform,
+				"key",
+				m.Toleration.Key,
+				"value",
+				m.Toleration.Value,
+			)
 		}
 	}
 

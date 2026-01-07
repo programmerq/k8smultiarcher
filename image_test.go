@@ -101,7 +101,14 @@ func TestDoesImageSupportPlatform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := DoesImageSupportPlatform(context.Background(), tt.args.cache, tt.args.name, tt.args.platform, nil); got != tt.want {
+			got := DoesImageSupportPlatform(
+				context.Background(),
+				tt.args.cache,
+				tt.args.name,
+				tt.args.platform,
+				nil,
+			)
+			if got != tt.want {
 				t.Errorf("DoesImageSupportPlatform() = %v, want %v", got, tt.want)
 			}
 		})

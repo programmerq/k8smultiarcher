@@ -22,7 +22,12 @@ var MultiarchToleration = corev1.Toleration{
 	Effect:   "NoSchedule",
 }
 
-func ProcessAdmissionReview(ctx context.Context, cache Cache, config *PlatformTolerationConfig, requestBody []byte) (*admissionv1.AdmissionReview, error) {
+func ProcessAdmissionReview(
+	ctx context.Context,
+	cache Cache,
+	config *PlatformTolerationConfig,
+	requestBody []byte,
+) (*admissionv1.AdmissionReview, error) {
 	review, err := AdmissionReviewFromRequest(requestBody)
 	if err != nil {
 		return nil, err
@@ -150,9 +155,19 @@ func AddMultiarchTolerationToPod(pod *corev1.Pod) {
 }
 
 // GetPodSupportedPlatforms returns platforms supported by all images in the pod
-func GetPodSupportedPlatforms(ctx context.Context, cache Cache, config *PlatformTolerationConfig, pod *corev1.Pod, registryHosts []config.Host) []string {
+func GetPodSupportedPlatforms(
+	ctx context.Context,
+	cache Cache,
+	config *PlatformTolerationConfig,
+	pod *corev1.Pod,
+	registryHosts []config.Host,
+) []string {
 	// Combine all container types: regular, init, and ephemeral
-	allContainers := make([]corev1.Container, 0, len(pod.Spec.Containers)+len(pod.Spec.InitContainers)+len(pod.Spec.EphemeralContainers))
+	allContainers := make(
+		[]corev1.Container,
+		0,
+		len(pod.Spec.Containers)+len(pod.Spec.InitContainers)+len(pod.Spec.EphemeralContainers),
+	)
 	allContainers = append(allContainers, pod.Spec.Containers...)
 	allContainers = append(allContainers, pod.Spec.InitContainers...)
 	for _, ec := range pod.Spec.EphemeralContainers {
@@ -165,9 +180,19 @@ func GetPodSupportedPlatforms(ctx context.Context, cache Cache, config *Platform
 }
 
 // GetPodTemplateSupportedPlatforms returns platforms supported by all images in the pod template
-func GetPodTemplateSupportedPlatforms(ctx context.Context, cache Cache, config *PlatformTolerationConfig, template *corev1.PodTemplateSpec, registryHosts []config.Host) []string {
+func GetPodTemplateSupportedPlatforms(
+	ctx context.Context,
+	cache Cache,
+	config *PlatformTolerationConfig,
+	template *corev1.PodTemplateSpec,
+	registryHosts []config.Host,
+) []string {
 	// Combine all container types: regular, init, and ephemeral
-	allContainers := make([]corev1.Container, 0, len(template.Spec.Containers)+len(template.Spec.InitContainers)+len(template.Spec.EphemeralContainers))
+	allContainers := make(
+		[]corev1.Container,
+		0,
+		len(template.Spec.Containers)+len(template.Spec.InitContainers)+len(template.Spec.EphemeralContainers),
+	)
 	allContainers = append(allContainers, template.Spec.Containers...)
 	allContainers = append(allContainers, template.Spec.InitContainers...)
 	for _, ec := range template.Spec.EphemeralContainers {
@@ -180,7 +205,13 @@ func GetPodTemplateSupportedPlatforms(ctx context.Context, cache Cache, config *
 }
 
 // getContainersSupportedPlatforms checks which configured platforms are supported by all container images
-func getContainersSupportedPlatforms(ctx context.Context, cache Cache, config *PlatformTolerationConfig, containers []corev1.Container, registryHosts []config.Host) []string {
+func getContainersSupportedPlatforms(
+	ctx context.Context,
+	cache Cache,
+	config *PlatformTolerationConfig,
+	containers []corev1.Container,
+	registryHosts []config.Host,
+) []string {
 	configuredPlatforms := config.GetPlatforms()
 	supportedPlatforms := []string{}
 
@@ -206,7 +237,11 @@ func getContainersSupportedPlatforms(ctx context.Context, cache Cache, config *P
 }
 
 // addTolerationsToSlice adds tolerations for supported platforms to the given tolerations slice.
-func addTolerationsToSlice(config *PlatformTolerationConfig, supportedPlatforms []string, tolerations *[]corev1.Toleration) {
+func addTolerationsToSlice(
+	config *PlatformTolerationConfig,
+	supportedPlatforms []string,
+	tolerations *[]corev1.Toleration,
+) {
 	newTolerations := config.GetTolerationsForPlatforms(supportedPlatforms)
 	for _, toleration := range newTolerations {
 		if !slices.Contains(*tolerations, toleration) {
@@ -221,6 +256,10 @@ func AddTolerationsToPod(config *PlatformTolerationConfig, pod *corev1.Pod, supp
 }
 
 // AddTolerationsToPodTemplate adds tolerations for supported platforms to a pod template
-func AddTolerationsToPodTemplate(config *PlatformTolerationConfig, template *corev1.PodTemplateSpec, supportedPlatforms []string) {
+func AddTolerationsToPodTemplate(
+	config *PlatformTolerationConfig,
+	template *corev1.PodTemplateSpec,
+	supportedPlatforms []string,
+) {
 	addTolerationsToSlice(config, supportedPlatforms, &template.Spec.Tolerations)
 }
