@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"github.com/regclient/regclient/config"
@@ -192,13 +193,11 @@ func decodeDockerAuth(encoded string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	parts := string(decoded)
 
-	// Use a more robust approach that handles colons in passwords
-	for i := 0; i < len(parts); i++ {
-		if parts[i] == ':' {
-			return parts[:i], parts[i+1:], nil
-		}
+	// Use strings.SplitN to properly handle colons in passwords
+	parts := strings.SplitN(string(decoded), ":", 2)
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid auth format, expected format username:password")
 	}
-	return "", "", errors.New("invalid auth format, expected format username:password")
+	return parts[0], parts[1], nil
 }
