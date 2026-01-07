@@ -51,6 +51,7 @@ func GetManifest(ctx context.Context, name string, hosts []config.Host) (manifes
 		slog.Error("image has no manifest list", "image", name, "error", err)
 		return nil, err
 	}
+	slog.Info("got manifest", "image", name)
 	return m, nil
 }
 

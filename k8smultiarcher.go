@@ -23,6 +23,7 @@ func main() {
 	namespaceFilterCfg = LoadNamespaceFilterConfig()
 
 	r := gin.Default()
+	r.SetTrustedProxies(nil)
 	r.POST("/mutate", mutateHandler)
 	r.GET("/healthz", healthzHandler)
 	r.GET("/livez", livezHandler)
