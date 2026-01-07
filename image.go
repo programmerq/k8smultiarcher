@@ -34,8 +34,12 @@ func GetManifest(ctx context.Context, name string, hosts []config.Host) (manifes
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, registryRequestTimeout)
-	defer cancel()
+	// Only add timeout if the context doesn't already have a deadline
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, registryRequestTimeout)
+		defer cancel()
+	}
 	m, err := rc.ManifestGet(ctx, ref)
 	if err != nil {
 		slog.Error("failed to get manifest", "image", name, "error", err)
