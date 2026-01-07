@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"slices"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 )
+
+const linuxArm64 = "linux/arm64"
 
 func TestLoadPlatformTolerationConfig_Default(t *testing.T) {
 	// Clear any environment variables
@@ -19,7 +22,7 @@ func TestLoadPlatformTolerationConfig_Default(t *testing.T) {
 		t.Errorf("Expected 1 default mapping, got %d", len(config.Mappings))
 	}
 
-	if config.Mappings[0].Platform != "linux/arm64" {
+	if config.Mappings[0].Platform != linuxArm64 {
 		t.Errorf("Expected default platform to be linux/arm64, got %s", config.Mappings[0].Platform)
 	}
 
@@ -58,9 +61,9 @@ func TestLoadPlatformTolerationConfig_SimpleEnvVars(t *testing.T) {
 }
 
 func TestLoadPlatformTolerationConfig_JSON(t *testing.T) {
-	jsonConfig := `[
+	jsonConfig := fmt.Sprintf(`[
 		{
-			"platform": "linux/arm64",
+			"platform": %q,
 			"key": "arch",
 			"value": "arm64",
 			"operator": "Equal",
@@ -73,7 +76,7 @@ func TestLoadPlatformTolerationConfig_JSON(t *testing.T) {
 			"operator": "Equal",
 			"effect": "NoSchedule"
 		}
-	]`
+	]`, linuxArm64)
 	os.Setenv("PLATFORM_TOLERATIONS", jsonConfig)
 	defer os.Unsetenv("PLATFORM_TOLERATIONS")
 
@@ -83,7 +86,7 @@ func TestLoadPlatformTolerationConfig_JSON(t *testing.T) {
 		t.Errorf("Expected 2 mappings, got %d", len(config.Mappings))
 	}
 
-	if config.Mappings[0].Platform != "linux/arm64" {
+	if config.Mappings[0].Platform != linuxArm64 {
 		t.Errorf("Expected first platform to be linux/arm64, got %s", config.Mappings[0].Platform)
 	}
 
@@ -93,15 +96,15 @@ func TestLoadPlatformTolerationConfig_JSON(t *testing.T) {
 }
 
 func TestLoadPlatformTolerationConfig_JSON_InvalidOperatorAndEffect(t *testing.T) {
-	jsonConfig := `[
+	jsonConfig := fmt.Sprintf(`[
 		{
-			"platform": "linux/arm64",
+			"platform": %q,
 			"key": "arch",
 			"value": "arm64",
 			"operator": "InvalidOperator",
 			"effect": "InvalidEffect"
 		}
-	]`
+	]`, linuxArm64)
 	os.Setenv("PLATFORM_TOLERATIONS", jsonConfig)
 	defer os.Unsetenv("PLATFORM_TOLERATIONS")
 
@@ -124,7 +127,7 @@ func TestLoadPlatformTolerationConfig_JSON_InvalidOperatorAndEffect(t *testing.T
 func TestGetPlatforms(t *testing.T) {
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{
-			{Platform: "linux/arm64"},
+			{Platform: linuxArm64},
 			{Platform: "linux/amd64"},
 			{Platform: "linux/arm/v7"},
 		},
@@ -132,7 +135,7 @@ func TestGetPlatforms(t *testing.T) {
 
 	platforms := config.GetPlatforms()
 
-	expected := []string{"linux/arm64", "linux/amd64", "linux/arm/v7"}
+	expected := []string{linuxArm64, "linux/amd64", "linux/arm/v7"}
 	if !slices.Equal(platforms, expected) {
 		t.Errorf("GetPlatforms() = %v, want %v", platforms, expected)
 	}
@@ -142,7 +145,7 @@ func TestGetTolerationsForPlatforms(t *testing.T) {
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{
 			{
-				Platform: "linux/arm64",
+				Platform: linuxArm64,
 				Toleration: corev1.Toleration{
 					Key:      "arch",
 					Value:    "arm64",
@@ -171,7 +174,7 @@ func TestGetTolerationsForPlatforms(t *testing.T) {
 		},
 	}
 
-	supportedPlatforms := []string{"linux/arm64", "linux/amd64"}
+	supportedPlatforms := []string{linuxArm64, "linux/amd64"}
 	tolerations := config.GetTolerationsForPlatforms(supportedPlatforms)
 
 	if len(tolerations) != 2 {

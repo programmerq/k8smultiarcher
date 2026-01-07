@@ -11,8 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var cache Cache
-var platformConfig *PlatformTolerationConfig
+var (
+	cache          Cache
+	platformConfig *PlatformTolerationConfig
+)
 
 func main() {
 	configureCache()
@@ -33,7 +35,7 @@ func mutateHandler(c *gin.Context) {
 		return
 	}
 
-	review, err := ProcessAdmissionReview(cache, platformConfig, body)
+	review, err := ProcessAdmissionReview(c.Request.Context(), cache, platformConfig, body)
 	if err != nil {
 		slog.Error("failed to process admission review", "error", err)
 		c.JSON(500, gin.H{"error": "internal server error"})
@@ -97,7 +99,14 @@ func startServer(r *gin.Engine) {
 		if keyPath = os.Getenv("KEY_PATH"); keyPath == "" {
 			keyPath = "./certs/tls.key"
 		}
-		r.RunTLS(addr, certPath, keyPath)
+		if err := r.RunTLS(addr, certPath, keyPath); err != nil {
+			slog.Error("failed to start TLS server", "error", err)
+			os.Exit(1)
+		}
+		return
 	}
-	r.Run(addr)
+	if err := r.Run(addr); err != nil {
+		slog.Error("failed to start server", "error", err)
+		os.Exit(1)
+	}
 }
