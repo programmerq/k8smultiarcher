@@ -11,8 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var cache Cache
-var platformConfig *PlatformTolerationConfig
+var (
+	cache          Cache
+	platformConfig *PlatformTolerationConfig
+)
 
 func main() {
 	configureCache()
