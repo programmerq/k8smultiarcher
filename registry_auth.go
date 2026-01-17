@@ -224,5 +224,5 @@ func IsNamespaceDisabled(ctx context.Context, namespace string) bool {
 		return false
 	}
 
-	return ns.Annotations["k8smultiarcher.programmerq.io/disabled"] == "true"
+	return ns.Annotations[AnnotationNamespaceDisabled] == "true"
 }
