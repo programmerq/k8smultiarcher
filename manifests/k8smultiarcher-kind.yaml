@@ -24,7 +24,7 @@ metadata:
 # Roles if you want to restrict the webhook to specific namespaces.
 rules:
   - apiGroups: [""]
-    resources: ["secrets", "serviceaccounts"]
+    resources: ["secrets", "serviceaccounts", "namespaces"]
     verbs: ["get"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

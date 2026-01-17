@@ -79,6 +79,68 @@ Each mapping in the JSON array supports:
 3. If all images support a platform, the corresponding toleration is added
 4. Multiple tolerations can be added if the images support multiple configured platforms
 
+## Opt-Out and Per-Namespace Control
+
+k8smultiarcher supports opt-out mechanisms at both the workload and namespace levels to prevent mutation when needed.
+
+### Pod-Level Opt-Out
+
+You can prevent k8smultiarcher from mutating a specific Pod or DaemonSet by adding the `k8smultiarcher.programmerq.io/skip-mutation` annotation with value `"true"`:
+
+**Pod Example:**
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+  annotations:
+    k8smultiarcher.programmerq.io/skip-mutation: "true"
+spec:
+  containers:
+    - name: busybox
+      image: busybox
+```
+
+**DaemonSet Example:**
+
+```yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: mydaemonset
+spec:
+  template:
+    metadata:
+      annotations:
+        k8smultiarcher.programmerq.io/skip-mutation: "true"
+    spec:
+      containers:
+        - name: busybox
+          image: busybox
+```
+
+### Namespace-Level Disable
+
+You can disable mutation for all Pods and DaemonSets in a namespace by annotating the namespace with `k8smultiarcher.programmerq.io/disabled` set to `"true"`:
+
+```bash
+kubectl annotate namespace my-namespace k8smultiarcher.programmerq.io/disabled="true"
+```
+
+Or in a Namespace manifest:
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: my-namespace
+  annotations:
+    k8smultiarcher.programmerq.io/disabled: "true"
+```
+
+**Note:** The namespace check requires the webhook to have `get` permission on `namespaces` resources (included in the example manifests). If the namespace lookup fails, the webhook will default to not skipping mutation and log the error.
+
 ## Container Images
 
 Multi-architecture container images are available at `ghcr.io/programmerq/k8smultiarcher` supporting linux/amd64, linux/arm64, and linux/arm/v7 platforms.

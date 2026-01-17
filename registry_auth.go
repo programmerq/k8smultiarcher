@@ -201,3 +201,28 @@ func decodeDockerAuth(encoded string) (string, string, error) {
 	}
 	return parts[0], parts[1], nil
 }
+
+// IsNamespaceDisabled checks if the namespace has the disabled annotation set to "true"
+func IsNamespaceDisabled(ctx context.Context, namespace string) bool {
+	if namespace == "" {
+		return false
+	}
+
+	client, err := getKubeClient()
+	if err != nil {
+		slog.Debug("kubernetes client unavailable for namespace check", "namespace", namespace, "error", err)
+		return false
+	}
+
+	ns, err := client.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	if err != nil {
+		slog.Warn("failed to get namespace", "namespace", namespace, "error", err)
+		return false
+	}
+
+	if ns.Annotations == nil {
+		return false
+	}
+
+	return ns.Annotations["k8smultiarcher.programmerq.io/disabled"] == "true"
+}

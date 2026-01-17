@@ -15,11 +15,34 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const (
+	// AnnotationSkipMutation is the annotation key to opt-out of mutation
+	AnnotationSkipMutation = "k8smultiarcher.programmerq.io/skip-mutation"
+	// AnnotationNamespaceDisabled is the namespace annotation key to disable mutation
+	AnnotationNamespaceDisabled = "k8smultiarcher.programmerq.io/disabled"
+)
+
 var MultiarchToleration = corev1.Toleration{
 	Key:      "k8smultiarcher",
 	Value:    "arm64Supported",
 	Operator: corev1.TolerationOpEqual,
 	Effect:   "NoSchedule",
+}
+
+// PodHasSkipAnnotation returns true if the pod has the skip-mutation annotation set to "true"
+func PodHasSkipAnnotation(pod *corev1.Pod) bool {
+	if pod.Annotations == nil {
+		return false
+	}
+	return pod.Annotations[AnnotationSkipMutation] == "true"
+}
+
+// PodTemplateHasSkipAnnotation returns true if the pod template has the skip-mutation annotation set to "true"
+func PodTemplateHasSkipAnnotation(template *corev1.PodTemplateSpec) bool {
+	if template.Annotations == nil {
+		return false
+	}
+	return template.Annotations[AnnotationSkipMutation] == "true"
 }
 
 func ProcessAdmissionReview(
@@ -51,11 +74,26 @@ func ProcessAdmissionReview(
 			return nil, err
 		}
 
+		// Check if pod has skip annotation
+		if PodHasSkipAnnotation(pod) {
+			slog.Info("skipping mutation due to pod annotation", "pod", pod.Name, "namespace", pod.Namespace)
+			review.Response = &response
+			return review, nil
+		}
+
 		// Use review.Request.Namespace as it's the authoritative source, falling back to pod.Namespace
 		namespace := review.Request.Namespace
 		if namespace == "" {
 			namespace = pod.Namespace
 		}
+
+		// Check if namespace has disabled annotation
+		if namespace != "" && IsNamespaceDisabled(ctx, namespace) {
+			slog.Info("skipping mutation due to namespace annotation", "namespace", namespace)
+			review.Response = &response
+			return review, nil
+		}
+
 		registryHosts := GetRegistryHosts(ctx, namespace, &pod.Spec)
 		supportedPlatforms := GetPodSupportedPlatforms(ctx, cache, config, pod, registryHosts)
 		if len(supportedPlatforms) == 0 {
@@ -80,11 +118,26 @@ func ProcessAdmissionReview(
 			return nil, err
 		}
 
+		// Check if pod template has skip annotation
+		if PodTemplateHasSkipAnnotation(&daemonSet.Spec.Template) {
+			slog.Info("skipping mutation due to daemonset template annotation", "daemonset", daemonSet.Name, "namespace", daemonSet.Namespace)
+			review.Response = &response
+			return review, nil
+		}
+
 		// Use review.Request.Namespace as it's the authoritative source, falling back to daemonSet.Namespace
 		namespace := review.Request.Namespace
 		if namespace == "" {
 			namespace = daemonSet.Namespace
 		}
+
+		// Check if namespace has disabled annotation
+		if namespace != "" && IsNamespaceDisabled(ctx, namespace) {
+			slog.Info("skipping mutation due to namespace annotation", "namespace", namespace)
+			review.Response = &response
+			return review, nil
+		}
+
 		registryHosts := GetRegistryHosts(ctx, namespace, &daemonSet.Spec.Template.Spec)
 		supportedPlatforms := GetPodTemplateSupportedPlatforms(ctx, cache, config, &daemonSet.Spec.Template, registryHosts)
 		if len(supportedPlatforms) == 0 {

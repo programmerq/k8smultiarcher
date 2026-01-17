@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestAddMultiarchTolerationToPod(t *testing.T) {
@@ -332,5 +333,121 @@ func TestAddTolerationsToPod_NoDuplicates(t *testing.T) {
 
 	if len(pod.Spec.Tolerations) != 1 {
 		t.Errorf("Expected 1 toleration (no duplicate), got %d", len(pod.Spec.Tolerations))
+	}
+}
+
+func TestPodHasSkipAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		pod         *corev1.Pod
+		expectedVal bool
+	}{
+		{
+			name: "pod with skip annotation set to true",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnotationSkipMutation: "true",
+					},
+				},
+			},
+			expectedVal: true,
+		},
+		{
+			name: "pod with skip annotation set to false",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnotationSkipMutation: "false",
+					},
+				},
+			},
+			expectedVal: false,
+		},
+		{
+			name: "pod without skip annotation",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
+				},
+			},
+			expectedVal: false,
+		},
+		{
+			name: "pod with nil annotations",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
+				},
+			},
+			expectedVal: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PodHasSkipAnnotation(tt.pod)
+			if got != tt.expectedVal {
+				t.Errorf("PodHasSkipAnnotation() = %v, want %v", got, tt.expectedVal)
+			}
+		})
+	}
+}
+
+func TestPodTemplateHasSkipAnnotation(t *testing.T) {
+	tests := []struct {
+		name        string
+		template    *corev1.PodTemplateSpec
+		expectedVal bool
+	}{
+		{
+			name: "template with skip annotation set to true",
+			template: &corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnotationSkipMutation: "true",
+					},
+				},
+			},
+			expectedVal: true,
+		},
+		{
+			name: "template with skip annotation set to false",
+			template: &corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnotationSkipMutation: "false",
+					},
+				},
+			},
+			expectedVal: false,
+		},
+		{
+			name: "template without skip annotation",
+			template: &corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
+				},
+			},
+			expectedVal: false,
+		},
+		{
+			name: "template with nil annotations",
+			template: &corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
+				},
+			},
+			expectedVal: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PodTemplateHasSkipAnnotation(tt.template)
+			if got != tt.expectedVal {
+				t.Errorf("PodTemplateHasSkipAnnotation() = %v, want %v", got, tt.expectedVal)
+			}
+		})
 	}
 }
