@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // PlatformTolerationConfig holds the configuration for platform-to-toleration mappings
@@ -168,4 +170,70 @@ func (c *PlatformTolerationConfig) GetTolerationsForPlatforms(supportedPlatforms
 		}
 	}
 	return tolerations
+}
+
+// NamespaceFilterConfig holds the configuration for namespace filtering
+type NamespaceFilterConfig struct {
+	// NamespaceSelector is a label selector to filter namespaces to watch
+	NamespaceSelector labels.Selector
+	// NamespacesToIgnore is a list of namespace names to skip
+	NamespacesToIgnore map[string]bool
+}
+
+// LoadNamespaceFilterConfig loads namespace filtering configuration from environment variables
+func LoadNamespaceFilterConfig() *NamespaceFilterConfig {
+	config := &NamespaceFilterConfig{
+		NamespacesToIgnore: make(map[string]bool),
+	}
+
+	// Parse NAMESPACE_SELECTOR
+	if selectorStr := os.Getenv("NAMESPACE_SELECTOR"); selectorStr != "" {
+		selector, err := labels.Parse(selectorStr)
+		if err != nil {
+			slog.Error("failed to parse NAMESPACE_SELECTOR, ignoring", "value", selectorStr, "error", err)
+		} else {
+			config.NamespaceSelector = selector
+			slog.Info("loaded namespace selector", "selector", selectorStr)
+		}
+	}
+
+	// Parse NAMESPACES_TO_IGNORE
+	if ignoreStr := os.Getenv("NAMESPACES_TO_IGNORE"); ignoreStr != "" {
+		namespaces := strings.Split(ignoreStr, ",")
+		for _, ns := range namespaces {
+			ns = strings.TrimSpace(ns)
+			if ns != "" {
+				config.NamespacesToIgnore[ns] = true
+			}
+		}
+		if len(config.NamespacesToIgnore) > 0 {
+			slog.Info("loaded namespaces to ignore", "count", len(config.NamespacesToIgnore), "namespaces", ignoreStr)
+		}
+	}
+
+	return config
+}
+
+// ShouldSkipNamespace checks if a namespace should be skipped based on the filter config
+// Returns true if the namespace should be skipped, false if it should be processed
+func (c *NamespaceFilterConfig) ShouldSkipNamespace(ns *corev1.Namespace) bool {
+	if ns == nil {
+		return false
+	}
+
+	// Check if namespace is in the ignore list
+	if c.NamespacesToIgnore[ns.Name] {
+		slog.Debug("skipping namespace due to ignore list", "namespace", ns.Name)
+		return true
+	}
+
+	// Check namespace selector (if configured)
+	if c.NamespaceSelector != nil && !c.NamespaceSelector.Empty() {
+		if !c.NamespaceSelector.Matches(labels.Set(ns.Labels)) {
+			slog.Debug("skipping namespace due to selector mismatch", "namespace", ns.Name)
+			return true
+		}
+	}
+
+	return false
 }
