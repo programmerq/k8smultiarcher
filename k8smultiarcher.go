@@ -12,13 +12,15 @@ import (
 )
 
 var (
-	cache          Cache
-	platformConfig *PlatformTolerationConfig
+	cache              Cache
+	platformConfig     *PlatformTolerationConfig
+	namespaceFilterCfg *NamespaceFilterConfig
 )
 
 func main() {
 	configureCache()
 	platformConfig = LoadPlatformTolerationConfig()
+	namespaceFilterCfg = LoadNamespaceFilterConfig()
 
 	r := gin.Default()
 	r.POST("/mutate", mutateHandler)
@@ -35,7 +37,7 @@ func mutateHandler(c *gin.Context) {
 		return
 	}
 
-	review, err := ProcessAdmissionReview(c.Request.Context(), cache, platformConfig, body)
+	review, err := ProcessAdmissionReview(c.Request.Context(), cache, platformConfig, namespaceFilterCfg, body)
 	if err != nil {
 		slog.Error("failed to process admission review", "error", err)
 		c.JSON(500, gin.H{"error": "internal server error"})

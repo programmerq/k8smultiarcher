@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 const linuxArm64 = "linux/arm64"
@@ -200,5 +202,170 @@ func TestGetTolerationsForPlatforms(t *testing.T) {
 		if !slices.Contains(tolerations, expected) {
 			t.Errorf("Expected toleration %v not found", expected)
 		}
+	}
+}
+
+func TestLoadNamespaceFilterConfig(t *testing.T) {
+	tests := []struct {
+		name              string
+		selectorEnv       string
+		ignoreEnv         string
+		expectSelector    bool
+		expectIgnoreCount int
+	}{
+		{
+			name:              "no config",
+			selectorEnv:       "",
+			ignoreEnv:         "",
+			expectSelector:    false,
+			expectIgnoreCount: 0,
+		},
+		{
+			name:              "only selector",
+			selectorEnv:       "environment=prod",
+			ignoreEnv:         "",
+			expectSelector:    true,
+			expectIgnoreCount: 0,
+		},
+		{
+			name:              "only ignore list",
+			selectorEnv:       "",
+			ignoreEnv:         "kube-system,kube-public",
+			expectSelector:    false,
+			expectIgnoreCount: 2,
+		},
+		{
+			name:              "both selector and ignore list",
+			selectorEnv:       "team=platform",
+			ignoreEnv:         "default,kube-system",
+			expectSelector:    true,
+			expectIgnoreCount: 2,
+		},
+		{
+			name:              "ignore list with spaces",
+			selectorEnv:       "",
+			ignoreEnv:         " ns1 , ns2 , ns3 ",
+			expectSelector:    false,
+			expectIgnoreCount: 3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Set environment variables
+			if tt.selectorEnv != "" {
+				t.Setenv("NAMESPACE_SELECTOR", tt.selectorEnv)
+			}
+			if tt.ignoreEnv != "" {
+				t.Setenv("NAMESPACES_TO_IGNORE", tt.ignoreEnv)
+			}
+
+			config := LoadNamespaceFilterConfig()
+
+			if tt.expectSelector {
+				if config.NamespaceSelector == nil || config.NamespaceSelector.Empty() {
+					t.Error("Expected namespace selector to be set")
+				}
+			} else {
+				if config.NamespaceSelector != nil && !config.NamespaceSelector.Empty() {
+					t.Error("Expected namespace selector to be empty")
+				}
+			}
+
+			if len(config.NamespacesToIgnore) != tt.expectIgnoreCount {
+				t.Errorf("Expected %d namespaces to ignore, got %d", tt.expectIgnoreCount, len(config.NamespacesToIgnore))
+			}
+		})
+	}
+}
+
+func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *NamespaceFilterConfig
+		namespace      *corev1.Namespace
+		expectedResult bool
+	}{
+		{
+			name:           "nil namespace",
+			config:         &NamespaceFilterConfig{},
+			namespace:      nil,
+			expectedResult: true,
+		},
+		{
+			name: "namespace in ignore list",
+			config: &NamespaceFilterConfig{
+				NamespacesToIgnore: map[string]bool{
+					"kube-system": true,
+				},
+			},
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "kube-system",
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "namespace not in ignore list",
+			config: &NamespaceFilterConfig{
+				NamespacesToIgnore: map[string]bool{
+					"kube-system": true,
+				},
+			},
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "default",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "namespace matches selector",
+			config: &NamespaceFilterConfig{
+				NamespaceSelector: labels.SelectorFromSet(labels.Set{"environment": "prod"}),
+			},
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "my-namespace",
+					Labels: map[string]string{"environment": "prod"},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "namespace does not match selector",
+			config: &NamespaceFilterConfig{
+				NamespaceSelector: labels.SelectorFromSet(labels.Set{"environment": "prod"}),
+			},
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "my-namespace",
+					Labels: map[string]string{"environment": "dev"},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "namespace without labels, selector set",
+			config: &NamespaceFilterConfig{
+				NamespaceSelector: labels.SelectorFromSet(labels.Set{"environment": "prod"}),
+			},
+			namespace: &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "my-namespace",
+				},
+			},
+			expectedResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.config.ShouldProcessNamespace(tt.namespace)
+			if result != tt.expectedResult {
+				t.Errorf("ShouldProcessNamespace() = %v, want %v", result, tt.expectedResult)
+			}
+		})
 	}
 }

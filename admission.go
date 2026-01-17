@@ -49,6 +49,7 @@ func ProcessAdmissionReview(
 	ctx context.Context,
 	cache Cache,
 	config *PlatformTolerationConfig,
+	namespaceFilterCfg *NamespaceFilterConfig,
 	requestBody []byte,
 ) (*admissionv1.AdmissionReview, error) {
 	review, err := AdmissionReviewFromRequest(requestBody)
@@ -85,6 +86,13 @@ func ProcessAdmissionReview(
 		namespace := review.Request.Namespace
 		if namespace == "" {
 			namespace = pod.Namespace
+		}
+
+		// Check if namespace is filtered by namespace selector or ignore list
+		if namespace != "" && IsNamespaceFiltered(ctx, namespace, namespaceFilterCfg) {
+			slog.Info("skipping mutation due to namespace filter", "namespace", namespace)
+			review.Response = &response
+			return review, nil
 		}
 
 		// Check if namespace has disabled annotation
@@ -129,6 +137,13 @@ func ProcessAdmissionReview(
 		namespace := review.Request.Namespace
 		if namespace == "" {
 			namespace = daemonSet.Namespace
+		}
+
+		// Check if namespace is filtered by namespace selector or ignore list
+		if namespace != "" && IsNamespaceFiltered(ctx, namespace, namespaceFilterCfg) {
+			slog.Info("skipping mutation due to namespace filter", "namespace", namespace)
+			review.Response = &response
+			return review, nil
 		}
 
 		// Check if namespace has disabled annotation

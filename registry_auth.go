@@ -226,3 +226,41 @@ func IsNamespaceDisabled(ctx context.Context, namespace string) bool {
 
 	return ns.Annotations[AnnotationNamespaceDisabled] == "true"
 }
+
+// IsNamespaceFiltered checks if a namespace should be filtered based on the namespace filter config
+// Returns true if the namespace should be skipped, false if it should be processed
+func IsNamespaceFiltered(ctx context.Context, namespace string, filterConfig *NamespaceFilterConfig) bool {
+	if namespace == "" || filterConfig == nil {
+		return false
+	}
+
+	// Quick check for ignored namespaces (no API call needed)
+	if filterConfig.NamespacesToIgnore[namespace] {
+		slog.Info("skipping mutation due to namespace in ignore list", "namespace", namespace)
+		return true
+	}
+
+	// If there's a namespace selector, check if the namespace matches
+	if filterConfig.NamespaceSelector != nil && !filterConfig.NamespaceSelector.Empty() {
+		client, err := getKubeClient()
+		if err != nil {
+			slog.Debug("kubernetes client unavailable for namespace selector check", "namespace", namespace, "error", err)
+			// If client is unavailable, don't filter (allow processing)
+			return false
+		}
+
+		ns, err := client.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+		if err != nil {
+			slog.Warn("failed to get namespace for selector check", "namespace", namespace, "error", err)
+			// If namespace lookup fails, don't filter (allow processing)
+			return false
+		}
+
+		if !filterConfig.ShouldProcessNamespace(ns) {
+			slog.Info("skipping mutation due to namespace selector mismatch", "namespace", namespace)
+			return true
+		}
+	}
+
+	return false
+}

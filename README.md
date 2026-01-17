@@ -20,6 +20,8 @@ k8smultiarcher is a small utility for working with multi-architecture Kubernetes
 | TOLERATION_OPERATOR  | (Simple config) The operator for a single toleration (default: "Equal"). Used with TOLERATION_KEY. |
 | TOLERATION_EFFECT    | (Simple config) The effect for a single toleration (default: "NoSchedule"). Used with TOLERATION_KEY. |
 | TOLERATION_PLATFORM  | (Simple config) The platform for a single toleration (default: "linux/arm64"). Used with TOLERATION_KEY. |
+| NAMESPACE_SELECTOR   | Label selector to filter namespaces to watch (e.g., `environment=prod` or `team in (platform,infra)`). See [Namespace Filtering](#namespace-filtering). |
+| NAMESPACES_TO_IGNORE | Comma-separated list of namespace names to skip from mutation (e.g., `kube-system,kube-public`). See [Namespace Filtering](#namespace-filtering). |
 
 ### Platform Tolerations Configuration
 
@@ -140,6 +142,90 @@ metadata:
 ```
 
 **Note:** The namespace check requires the webhook to have `get` permission on `namespaces` resources (included in the example manifests). If the namespace lookup fails, the webhook will default to not skipping mutation and log the error.
+
+## Namespace Filtering
+
+k8smultiarcher supports advanced namespace filtering similar to stakater/Reloader, allowing you to control which namespaces the webhook processes using label selectors or an ignore list.
+
+### Configuration
+
+Namespace filtering is configured via environment variables:
+
+**`NAMESPACE_SELECTOR`** - Watch only namespaces matching this label selector
+
+Examples:
+```bash
+# Single label match
+NAMESPACE_SELECTOR='environment=production'
+
+# Multiple labels (all must match)
+NAMESPACE_SELECTOR='environment=production,team=platform'
+
+# Set-based selector
+NAMESPACE_SELECTOR='environment in (production,staging)'
+```
+
+**`NAMESPACES_TO_IGNORE`** - Skip specific namespaces (comma-separated list)
+
+Examples:
+```bash
+# Ignore system namespaces
+NAMESPACES_TO_IGNORE='kube-system,kube-public'
+
+# Ignore multiple custom namespaces
+NAMESPACES_TO_IGNORE='monitoring,logging,default'
+```
+
+### How It Works
+
+The webhook evaluates namespace filters in the following order:
+
+1. **Ignore list check**: If a namespace is in `NAMESPACES_TO_IGNORE`, mutation is skipped (no API call needed)
+2. **Selector check**: If `NAMESPACE_SELECTOR` is configured, the namespace must match the selector for mutation to proceed
+3. **Annotation check**: The namespace annotation `k8smultiarcher.programmerq.io/disabled` is checked (if enabled via annotation, mutation is skipped)
+4. **Pod annotation check**: The pod-level `k8smultiarcher.programmerq.io/skip-mutation` annotation is checked
+
+All filters can be used together. A namespace must pass all configured filters for mutation to occur.
+
+### Examples
+
+**Watch only production namespaces:**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8smultiarcher
+spec:
+  template:
+    spec:
+      containers:
+        - name: k8smultiarcher
+          image: ghcr.io/programmerq/k8smultiarcher:latest
+          env:
+            - name: NAMESPACE_SELECTOR
+              value: "environment=production"
+```
+
+**Ignore system namespaces:**
+
+```yaml
+env:
+  - name: NAMESPACES_TO_IGNORE
+    value: "kube-system,kube-public,kube-node-lease"
+```
+
+**Combine selector and ignore list:**
+
+```yaml
+env:
+  - name: NAMESPACE_SELECTOR
+    value: "managed-by=k8smultiarcher"
+  - name: NAMESPACES_TO_IGNORE
+    value: "dev-sandbox,test-temp"
+```
+
+This configuration watches only namespaces with label `managed-by=k8smultiarcher` while explicitly ignoring `dev-sandbox` and `test-temp`.
 
 ## Container Images
 
