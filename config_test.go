@@ -279,7 +279,7 @@ func TestLoadNamespaceFilterConfig(t *testing.T) {
 	}
 }
 
-func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
+func TestNamespaceFilterConfig_ShouldSkipNamespace(t *testing.T) {
 	tests := []struct {
 		name           string
 		config         *NamespaceFilterConfig
@@ -290,7 +290,7 @@ func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
 			name:           "nil namespace",
 			config:         &NamespaceFilterConfig{},
 			namespace:      nil,
-			expectedResult: true,
+			expectedResult: false,
 		},
 		{
 			name: "namespace in ignore list",
@@ -304,7 +304,7 @@ func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
 					Name: "kube-system",
 				},
 			},
-			expectedResult: false,
+			expectedResult: true,
 		},
 		{
 			name: "namespace not in ignore list",
@@ -318,7 +318,7 @@ func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
 					Name: "default",
 				},
 			},
-			expectedResult: true,
+			expectedResult: false,
 		},
 		{
 			name: "namespace matches selector",
@@ -331,7 +331,7 @@ func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
 					Labels: map[string]string{"environment": "prod"},
 				},
 			},
-			expectedResult: true,
+			expectedResult: false,
 		},
 		{
 			name: "namespace does not match selector",
@@ -344,7 +344,7 @@ func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
 					Labels: map[string]string{"environment": "dev"},
 				},
 			},
-			expectedResult: false,
+			expectedResult: true,
 		},
 		{
 			name: "namespace without labels, selector set",
@@ -356,15 +356,15 @@ func TestNamespaceFilterConfig_ShouldProcessNamespace(t *testing.T) {
 					Name: "my-namespace",
 				},
 			},
-			expectedResult: false,
+			expectedResult: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.config.ShouldProcessNamespace(tt.namespace)
+			result := tt.config.ShouldSkipNamespace(tt.namespace)
 			if result != tt.expectedResult {
-				t.Errorf("ShouldProcessNamespace() = %v, want %v", result, tt.expectedResult)
+				t.Errorf("ShouldSkipNamespace() = %v, want %v", result, tt.expectedResult)
 			}
 		})
 	}

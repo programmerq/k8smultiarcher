@@ -256,7 +256,7 @@ func IsNamespaceFiltered(ctx context.Context, namespace string, filterConfig *Na
 			return false
 		}
 
-		if !filterConfig.ShouldProcessNamespace(ns) {
+		if filterConfig.ShouldSkipNamespace(ns) {
 			slog.Info("skipping mutation due to namespace selector mismatch", "namespace", namespace)
 			return true
 		}

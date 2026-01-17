@@ -214,26 +214,26 @@ func LoadNamespaceFilterConfig() *NamespaceFilterConfig {
 	return config
 }
 
-// ShouldProcessNamespace checks if a namespace should be processed based on the filter config
-// Returns true if the namespace should be processed, false if it should be skipped
-func (c *NamespaceFilterConfig) ShouldProcessNamespace(ns *corev1.Namespace) bool {
+// ShouldSkipNamespace checks if a namespace should be skipped based on the filter config
+// Returns true if the namespace should be skipped, false if it should be processed
+func (c *NamespaceFilterConfig) ShouldSkipNamespace(ns *corev1.Namespace) bool {
 	if ns == nil {
-		return true
+		return false
 	}
 
 	// Check if namespace is in the ignore list
 	if c.NamespacesToIgnore[ns.Name] {
 		slog.Debug("skipping namespace due to ignore list", "namespace", ns.Name)
-		return false
+		return true
 	}
 
 	// Check namespace selector (if configured)
 	if c.NamespaceSelector != nil && !c.NamespaceSelector.Empty() {
 		if !c.NamespaceSelector.Matches(labels.Set(ns.Labels)) {
 			slog.Debug("skipping namespace due to selector mismatch", "namespace", ns.Name)
-			return false
+			return true
 		}
 	}
 
-	return true
+	return false
 }
