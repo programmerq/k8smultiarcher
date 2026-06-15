@@ -1,0 +1,25 @@
+{
+  "uid": "golden-uid",
+  "allowed": true,
+  "patchType": "JSONPatch",
+  "patch": [
+    {
+      "op": "add",
+      "path": "/spec/template/spec/tolerations",
+      "value": [
+        {
+          "effect": "NoSchedule",
+          "key": "arch",
+          "operator": "Equal",
+          "value": "arm64"
+        },
+        {
+          "effect": "NoSchedule",
+          "key": "arch",
+          "operator": "Equal",
+          "value": "amd64"
+        }
+      ]
+    }
+  ]
+}
