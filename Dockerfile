@@ -1,5 +1,6 @@
 # Multi-stage Dockerfile for building a static Go binary and producing a minimal runtime image.
-ARG GO_VERSION=1.25.1
+# GO_VERSION defaults to the version in go.mod; the publish-ghcr.yml workflow overrides it from go.mod.
+ARG GO_VERSION=1.26.0
 FROM golang:${GO_VERSION}-alpine AS builder
 
 # Install git (for 'go get' if needed) and ca-certificates
