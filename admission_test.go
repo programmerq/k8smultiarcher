@@ -9,43 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestAddMultiarchTolerationToPod(t *testing.T) {
-	pod := &corev1.Pod{
-		Spec: corev1.PodSpec{
-			Tolerations: []corev1.Toleration{
-				{
-					Key:      "key1",
-					Operator: corev1.TolerationOpEqual,
-					Value:    "value1",
-				},
-				{
-					Key:      "key2",
-					Operator: corev1.TolerationOpEqual,
-					Value:    "value2",
-				},
-			},
-		},
-	}
-	AddMultiarchTolerationToPod(pod)
-	expectedTolerations := []corev1.Toleration{
-		{
-			Key:      "key1",
-			Operator: corev1.TolerationOpEqual,
-			Value:    "value1",
-		},
-		{
-			Key:      "key2",
-			Operator: corev1.TolerationOpEqual,
-			Value:    "value2",
-		},
-		MultiarchToleration,
-	}
-
-	if !slices.Equal(pod.Spec.Tolerations, expectedTolerations) {
-		t.Errorf("Unexpected tolerations. Expected: %v, Got: %v", expectedTolerations, pod.Spec.Tolerations)
-	}
-}
-
 func TestGetPodSupportedPlatforms(t *testing.T) {
 	cache := NewInMemoryCache(cacheSizeDefault)
 	cache.Set("image1:linux/arm64", true, 0)

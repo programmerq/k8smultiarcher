@@ -22,13 +22,6 @@ const (
 	AnnotationNamespaceDisabled = "k8smultiarcher.programmerq.io/disabled"
 )
 
-var MultiarchToleration = corev1.Toleration{
-	Key:      "k8smultiarcher",
-	Value:    "arm64Supported",
-	Operator: corev1.TolerationOpEqual,
-	Effect:   "NoSchedule",
-}
-
 // PodHasSkipAnnotation returns true if the pod has the skip-mutation annotation set to "true"
 func PodHasSkipAnnotation(pod *corev1.Pod) bool {
 	if pod.Annotations == nil {
@@ -43,6 +36,35 @@ func PodTemplateHasSkipAnnotation(template *corev1.PodTemplateSpec) bool {
 		return false
 	}
 	return template.Annotations[AnnotationSkipMutation] == "true"
+}
+
+// shouldSkipMutation reports whether mutation should be skipped for an object,
+// based on its skip-mutation annotation, the namespace filter config, and the
+// namespace's disabled annotation. The kind and name are used only for logging.
+func shouldSkipMutation(
+	ctx context.Context,
+	kind, name, namespace string,
+	hasSkipAnnotation bool,
+	namespaceFilterCfg *NamespaceFilterConfig,
+) bool {
+	if hasSkipAnnotation {
+		slog.Info("skipping mutation due to skip annotation", "kind", kind, "name", name, "namespace", namespace)
+		return true
+	}
+
+	// Check if namespace is filtered by namespace selector or ignore list
+	if namespace != "" && IsNamespaceFiltered(ctx, namespace, namespaceFilterCfg) {
+		slog.Info("skipping mutation due to namespace filter", "namespace", namespace)
+		return true
+	}
+
+	// Check if namespace has disabled annotation
+	if namespace != "" && IsNamespaceDisabled(ctx, namespace) {
+		slog.Info("skipping mutation due to namespace annotation", "namespace", namespace)
+		return true
+	}
+
+	return false
 }
 
 func ProcessAdmissionReview(
@@ -75,29 +97,13 @@ func ProcessAdmissionReview(
 			return nil, err
 		}
 
-		// Check if pod has skip annotation
-		if PodHasSkipAnnotation(pod) {
-			slog.Info("skipping mutation due to pod annotation", "pod", pod.Name, "namespace", pod.Namespace)
-			review.Response = &response
-			return review, nil
-		}
-
 		// Use review.Request.Namespace as it's the authoritative source, falling back to pod.Namespace
 		namespace := review.Request.Namespace
 		if namespace == "" {
 			namespace = pod.Namespace
 		}
 
-		// Check if namespace is filtered by namespace selector or ignore list
-		if namespace != "" && IsNamespaceFiltered(ctx, namespace, namespaceFilterCfg) {
-			slog.Info("skipping mutation due to namespace filter", "namespace", namespace)
-			review.Response = &response
-			return review, nil
-		}
-
-		// Check if namespace has disabled annotation
-		if namespace != "" && IsNamespaceDisabled(ctx, namespace) {
-			slog.Info("skipping mutation due to namespace annotation", "namespace", namespace)
+		if shouldSkipMutation(ctx, "Pod", pod.Name, namespace, PodHasSkipAnnotation(pod), namespaceFilterCfg) {
 			review.Response = &response
 			return review, nil
 		}
@@ -126,29 +132,16 @@ func ProcessAdmissionReview(
 			return nil, err
 		}
 
-		// Check if pod template has skip annotation
-		if PodTemplateHasSkipAnnotation(&daemonSet.Spec.Template) {
-			slog.Info("skipping mutation due to daemonset template annotation", "daemonset", daemonSet.Name, "namespace", daemonSet.Namespace)
-			review.Response = &response
-			return review, nil
-		}
-
 		// Use review.Request.Namespace as it's the authoritative source, falling back to daemonSet.Namespace
 		namespace := review.Request.Namespace
 		if namespace == "" {
 			namespace = daemonSet.Namespace
 		}
 
-		// Check if namespace is filtered by namespace selector or ignore list
-		if namespace != "" && IsNamespaceFiltered(ctx, namespace, namespaceFilterCfg) {
-			slog.Info("skipping mutation due to namespace filter", "namespace", namespace)
-			review.Response = &response
-			return review, nil
-		}
-
-		// Check if namespace has disabled annotation
-		if namespace != "" && IsNamespaceDisabled(ctx, namespace) {
-			slog.Info("skipping mutation due to namespace annotation", "namespace", namespace)
+		if shouldSkipMutation(
+			ctx, "DaemonSet", daemonSet.Name, namespace,
+			PodTemplateHasSkipAnnotation(&daemonSet.Spec.Template), namespaceFilterCfg,
+		) {
 			review.Response = &response
 			return review, nil
 		}
@@ -209,27 +202,6 @@ func AdmissionReviewFromRequest(body []byte) (*admissionv1.AdmissionReview, erro
 	}
 
 	return &review, nil
-}
-
-func DoesPodSupportArm64(ctx context.Context, cache Cache, pod *corev1.Pod, registryHosts []config.Host) bool {
-	var errs []error
-	for _, container := range pod.Spec.Containers {
-		if !DoesImageSupportArm64(ctx, cache, container.Image, registryHosts) {
-			errs = append(errs, fmt.Errorf("image %s lacks arm64 support", container.Image))
-		}
-	}
-	if len(errs) > 0 {
-		slog.Info("pod has images without arm64 support", "error", errors.Join(errs...))
-		return false
-	}
-	return true
-}
-
-func AddMultiarchTolerationToPod(pod *corev1.Pod) {
-	if slices.Contains(pod.Spec.Tolerations, MultiarchToleration) {
-		return
-	}
-	pod.Spec.Tolerations = append(pod.Spec.Tolerations, MultiarchToleration)
 }
 
 // GetPodSupportedPlatforms returns platforms supported by all images in the pod
