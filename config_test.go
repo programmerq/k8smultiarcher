@@ -18,7 +18,10 @@ func TestLoadPlatformTolerationConfig_Default(t *testing.T) {
 	os.Unsetenv("PLATFORM_TOLERATIONS")
 	os.Unsetenv("TOLERATION_KEY")
 
-	config := LoadPlatformTolerationConfig()
+	config, err := LoadPlatformTolerationConfig()
+	if err != nil {
+		t.Fatalf("unexpected error loading config: %v", err)
+	}
 
 	if len(config.Mappings) != 1 {
 		t.Errorf("Expected 1 default mapping, got %d", len(config.Mappings))
@@ -43,7 +46,10 @@ func TestLoadPlatformTolerationConfig_SimpleEnvVars(t *testing.T) {
 		os.Unsetenv("TOLERATION_PLATFORM")
 	}()
 
-	config := LoadPlatformTolerationConfig()
+	config, err := LoadPlatformTolerationConfig()
+	if err != nil {
+		t.Fatalf("unexpected error loading config: %v", err)
+	}
 
 	if len(config.Mappings) != 1 {
 		t.Errorf("Expected 1 mapping, got %d", len(config.Mappings))
@@ -82,7 +88,10 @@ func TestLoadPlatformTolerationConfig_JSON(t *testing.T) {
 	os.Setenv("PLATFORM_TOLERATIONS", jsonConfig)
 	defer os.Unsetenv("PLATFORM_TOLERATIONS")
 
-	config := LoadPlatformTolerationConfig()
+	config, err := LoadPlatformTolerationConfig()
+	if err != nil {
+		t.Fatalf("unexpected error loading config: %v", err)
+	}
 
 	if len(config.Mappings) != 2 {
 		t.Errorf("Expected 2 mappings, got %d", len(config.Mappings))
@@ -110,7 +119,10 @@ func TestLoadPlatformTolerationConfig_JSON_InvalidOperatorAndEffect(t *testing.T
 	os.Setenv("PLATFORM_TOLERATIONS", jsonConfig)
 	defer os.Unsetenv("PLATFORM_TOLERATIONS")
 
-	config := LoadPlatformTolerationConfig()
+	config, err := LoadPlatformTolerationConfig()
+	if err != nil {
+		t.Fatalf("unexpected error loading config: %v", err)
+	}
 
 	if len(config.Mappings) != 1 {
 		t.Errorf("Expected 1 mapping, got %d", len(config.Mappings))
@@ -123,6 +135,18 @@ func TestLoadPlatformTolerationConfig_JSON_InvalidOperatorAndEffect(t *testing.T
 
 	if config.Mappings[0].Toleration.Effect != corev1.TaintEffectNoSchedule {
 		t.Errorf("Expected effect to default to NoSchedule, got %v", config.Mappings[0].Toleration.Effect)
+	}
+}
+
+func TestLoadPlatformTolerationConfig_MalformedJSON(t *testing.T) {
+	t.Setenv("PLATFORM_TOLERATIONS", `[{"platform": "linux/arm64", "key": }`)
+
+	config, err := LoadPlatformTolerationConfig()
+	if err == nil {
+		t.Fatal("expected an error for malformed PLATFORM_TOLERATIONS, got nil")
+	}
+	if config != nil {
+		t.Errorf("expected nil config on error, got %+v", config)
 	}
 }
 
@@ -260,7 +284,10 @@ func TestLoadNamespaceFilterConfig(t *testing.T) {
 				t.Setenv("NAMESPACES_TO_IGNORE", tt.ignoreEnv)
 			}
 
-			config := LoadNamespaceFilterConfig()
+			config, err := LoadNamespaceFilterConfig()
+			if err != nil {
+				t.Fatalf("unexpected error loading config: %v", err)
+			}
 
 			if tt.expectSelector {
 				if config.NamespaceSelector == nil || config.NamespaceSelector.Empty() {
@@ -276,6 +303,18 @@ func TestLoadNamespaceFilterConfig(t *testing.T) {
 				t.Errorf("Expected %d namespaces to ignore, got %d", tt.expectIgnoreCount, len(config.NamespacesToIgnore))
 			}
 		})
+	}
+}
+
+func TestLoadNamespaceFilterConfig_InvalidSelector(t *testing.T) {
+	t.Setenv("NAMESPACE_SELECTOR", "environment=prod,!@#invalid")
+
+	config, err := LoadNamespaceFilterConfig()
+	if err == nil {
+		t.Fatal("expected an error for an invalid NAMESPACE_SELECTOR, got nil")
+	}
+	if config != nil {
+		t.Errorf("expected nil config on error, got %+v", config)
 	}
 }
 

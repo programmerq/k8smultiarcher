@@ -19,8 +19,18 @@ var (
 
 func main() {
 	configureCache()
-	platformConfig = LoadPlatformTolerationConfig()
-	namespaceFilterCfg = LoadNamespaceFilterConfig()
+
+	var err error
+	platformConfig, err = LoadPlatformTolerationConfig()
+	if err != nil {
+		slog.Error("failed to load platform toleration config", "error", err)
+		os.Exit(1)
+	}
+	namespaceFilterCfg, err = LoadNamespaceFilterConfig()
+	if err != nil {
+		slog.Error("failed to load namespace filter config", "error", err)
+		os.Exit(1)
+	}
 
 	startServer(newRouter())
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -60,8 +61,10 @@ func validateEffect(effect string) corev1.TaintEffect {
 	return eff
 }
 
-// LoadPlatformTolerationConfig loads the configuration from environment variables
-func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
+// LoadPlatformTolerationConfig loads the configuration from environment
+// variables. A malformed PLATFORM_TOLERATIONS value is rejected with an error so
+// a typo fails fast at startup instead of silently falling back to other config.
+func LoadPlatformTolerationConfig() (*PlatformTolerationConfig, error) {
 	config := &PlatformTolerationConfig{
 		Mappings: []PlatformTolerationMapping{},
 	}
@@ -76,26 +79,24 @@ func LoadPlatformTolerationConfig() *PlatformTolerationConfig {
 			Effect   string `json:"effect"`
 		}
 		if err := json.Unmarshal([]byte(jsonConfig), &mappings); err != nil {
-			slog.Error("failed to parse PLATFORM_TOLERATIONS, ignoring JSON config", "error", err)
-			// Fall through to check simple configuration
-		} else {
-			for _, m := range mappings {
-				config.Mappings = append(config.Mappings, PlatformTolerationMapping{
-					Platform: m.Platform,
-					Toleration: corev1.Toleration{
-						Key:      m.Key,
-						Value:    m.Value,
-						Operator: validateOperator(m.Operator),
-						Effect:   validateEffect(m.Effect),
-					},
-				})
-			}
-			// If JSON was successfully parsed, skip simple configuration
-			// to avoid mixing configuration methods
-			if len(config.Mappings) > 0 {
-				slog.Info("loaded platform-toleration mappings from JSON", "count", len(config.Mappings))
-				goto applyDefaults
-			}
+			return nil, fmt.Errorf("invalid PLATFORM_TOLERATIONS JSON: %w", err)
+		}
+		for _, m := range mappings {
+			config.Mappings = append(config.Mappings, PlatformTolerationMapping{
+				Platform: m.Platform,
+				Toleration: corev1.Toleration{
+					Key:      m.Key,
+					Value:    m.Value,
+					Operator: validateOperator(m.Operator),
+					Effect:   validateEffect(m.Effect),
+				},
+			})
+		}
+		// If JSON provided mappings, skip simple configuration to avoid mixing
+		// configuration methods.
+		if len(config.Mappings) > 0 {
+			slog.Info("loaded platform-toleration mappings from JSON", "count", len(config.Mappings))
+			goto applyDefaults
 		}
 	}
 
@@ -145,7 +146,7 @@ applyDefaults:
 		}
 	}
 
-	return config
+	return config, nil
 }
 
 // GetPlatforms returns all configured platforms
@@ -180,8 +181,11 @@ type NamespaceFilterConfig struct {
 	NamespacesToIgnore map[string]bool
 }
 
-// LoadNamespaceFilterConfig loads namespace filtering configuration from environment variables
-func LoadNamespaceFilterConfig() *NamespaceFilterConfig {
+// LoadNamespaceFilterConfig loads namespace filtering configuration from
+// environment variables. An invalid NAMESPACE_SELECTOR is rejected with an error
+// so a bad selector fails fast at startup instead of silently disabling
+// filtering.
+func LoadNamespaceFilterConfig() (*NamespaceFilterConfig, error) {
 	config := &NamespaceFilterConfig{
 		NamespacesToIgnore: make(map[string]bool),
 	}
@@ -190,11 +194,10 @@ func LoadNamespaceFilterConfig() *NamespaceFilterConfig {
 	if selectorStr := os.Getenv("NAMESPACE_SELECTOR"); selectorStr != "" {
 		selector, err := labels.Parse(selectorStr)
 		if err != nil {
-			slog.Error("failed to parse NAMESPACE_SELECTOR, ignoring", "value", selectorStr, "error", err)
-		} else {
-			config.NamespaceSelector = selector
-			slog.Info("loaded namespace selector", "selector", selectorStr)
+			return nil, fmt.Errorf("invalid NAMESPACE_SELECTOR %q: %w", selectorStr, err)
 		}
+		config.NamespaceSelector = selector
+		slog.Info("loaded namespace selector", "selector", selectorStr)
 	}
 
 	// Parse NAMESPACES_TO_IGNORE
@@ -211,7 +214,7 @@ func LoadNamespaceFilterConfig() *NamespaceFilterConfig {
 		}
 	}
 
-	return config
+	return config, nil
 }
 
 // ShouldSkipNamespace checks if a namespace should be skipped based on the filter config
