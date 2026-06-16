@@ -4,26 +4,34 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"sync"
 	"testing"
 
 	"github.com/regclient/regclient/config"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 )
 
 const credTestRegistry = "registry.example.com"
 
-// setKubeClient replaces the package-level kubeClient singleton with the given
-// fake clientset so credential-resolution paths can be exercised without a
-// live cluster.
-func setKubeClient(client *fake.Clientset) {
-	kubeClientOnce = sync.Once{}
-	kubeClientOnce.Do(func() {
-		kubeClient = client
-		kubeClientErr = nil
-	})
+// withKubeClient swaps the package kubeClientFactory to return the given client
+// for the duration of the test, restoring the previous factory on cleanup. This
+// lets tests inject a fake client without touching the kubeClient singleton.
+func withKubeClient(t *testing.T, client kubernetes.Interface) {
+	t.Helper()
+	prev := kubeClientFactory
+	kubeClientFactory = func() (kubernetes.Interface, error) { return client, nil }
+	t.Cleanup(func() { kubeClientFactory = prev })
+}
+
+// withKubeClientErr makes getKubeClient return the given error for the duration
+// of the test.
+func withKubeClientErr(t *testing.T, err error) {
+	t.Helper()
+	prev := kubeClientFactory
+	kubeClientFactory = func() (kubernetes.Interface, error) { return nil, err }
+	t.Cleanup(func() { kubeClientFactory = prev })
 }
 
 func b64(s string) string {
@@ -232,28 +240,28 @@ func TestGetRegistryHosts(t *testing.T) {
 	}
 
 	t.Run("empty namespace returns nil", func(t *testing.T) {
-		setKubeClient(fake.NewSimpleClientset())
+		withKubeClient(t, fake.NewSimpleClientset())
 		if hosts := GetRegistryHosts(context.Background(), "", &corev1.PodSpec{}); hosts != nil {
 			t.Errorf("expected nil, got %#v", hosts)
 		}
 	})
 
 	t.Run("nil pod spec returns nil", func(t *testing.T) {
-		setKubeClient(fake.NewSimpleClientset())
+		withKubeClient(t, fake.NewSimpleClientset())
 		if hosts := GetRegistryHosts(context.Background(), ns, nil); hosts != nil {
 			t.Errorf("expected nil, got %#v", hosts)
 		}
 	})
 
 	t.Run("no image pull secrets returns nil", func(t *testing.T) {
-		setKubeClient(fake.NewSimpleClientset())
+		withKubeClient(t, fake.NewSimpleClientset())
 		if hosts := GetRegistryHosts(context.Background(), ns, &corev1.PodSpec{}); hosts != nil {
 			t.Errorf("expected nil, got %#v", hosts)
 		}
 	})
 
 	t.Run("pod image pull secret is resolved", func(t *testing.T) {
-		setKubeClient(fake.NewSimpleClientset(pullSecret))
+		withKubeClient(t, fake.NewSimpleClientset(pullSecret))
 		podSpec := &corev1.PodSpec{ImagePullSecrets: []corev1.LocalObjectReference{{Name: "regcred"}}}
 		hosts := GetRegistryHosts(context.Background(), ns, podSpec)
 		if len(hosts) != 1 || hosts[0].User != "alice" || hosts[0].Pass != "s3cret" {
@@ -266,7 +274,7 @@ func TestGetRegistryHosts(t *testing.T) {
 			ObjectMeta:       metav1.ObjectMeta{Name: "default", Namespace: ns},
 			ImagePullSecrets: []corev1.LocalObjectReference{{Name: "regcred"}},
 		}
-		setKubeClient(fake.NewSimpleClientset(pullSecret, sa))
+		withKubeClient(t, fake.NewSimpleClientset(pullSecret, sa))
 		hosts := GetRegistryHosts(context.Background(), ns, &corev1.PodSpec{})
 		if len(hosts) != 1 || hosts[0].User != "alice" {
 			t.Fatalf("unexpected hosts: %#v", hosts)
@@ -274,7 +282,7 @@ func TestGetRegistryHosts(t *testing.T) {
 	})
 
 	t.Run("missing referenced secret yields empty non-nil slice", func(t *testing.T) {
-		setKubeClient(fake.NewSimpleClientset())
+		withKubeClient(t, fake.NewSimpleClientset())
 		podSpec := &corev1.PodSpec{ImagePullSecrets: []corev1.LocalObjectReference{{Name: "nope"}}}
 		hosts := GetRegistryHosts(context.Background(), ns, podSpec)
 		if hosts == nil || len(hosts) != 0 {

@@ -75,7 +75,19 @@ func GetRegistryHosts(ctx context.Context, namespace string, podSpec *corev1.Pod
 	return hosts
 }
 
+// kubeClientFactory resolves the Kubernetes client used to read Secrets,
+// ServiceAccounts, and Namespaces. It is a package var so tests can substitute a
+// fake client without manipulating the sync.Once-guarded singleton below.
+var kubeClientFactory = inClusterKubeClient
+
+// getKubeClient returns the Kubernetes client via the configured factory.
 func getKubeClient() (kubernetes.Interface, error) {
+	return kubeClientFactory()
+}
+
+// inClusterKubeClient lazily builds the in-cluster client once and caches it for
+// the lifetime of the process.
+func inClusterKubeClient() (kubernetes.Interface, error) {
 	kubeClientOnce.Do(func() {
 		cfg, err := rest.InClusterConfig()
 		if err != nil {
