@@ -227,6 +227,16 @@ env:
 
 This configuration watches only namespaces with label `managed-by=k8smultiarcher` while explicitly ignoring `dev-sandbox` and `test-temp`.
 
+## Kubernetes API Compatibility
+
+k8smultiarcher consumes **typed** `k8s.io/api` structs (e.g. `corev1.Pod`, `appsv1.DaemonSet`, `admissionv1.AdmissionReview`) rather than unstructured maps. This makes Kubernetes API-shape compatibility a **compile-time** property: if a future `k8s.io/*` release renames or removes a field the webhook reads, `go build` fails. Because Dependabot bumps `k8s.io/*` and CI runs `go build`, breaking API-shape changes surface automatically as a red check.
+
+Compilation cannot catch JSON serialization or defaulting drift (for example, a new admission API version or a changed default value). To guard that, a golden-file test (`admission_golden_test.go` together with `testdata/`) pins the webhook's `AdmissionReview` response wire shape. Intentional changes show up as an explicit, reviewable diff; regenerate the golden files with:
+
+```bash
+go test -run TestProcessAdmissionReview_Golden -update
+```
+
 ## Container Images
 
 Multi-architecture container images are available at `ghcr.io/programmerq/k8smultiarcher` supporting linux/amd64, linux/arm64, and linux/arm/v7 platforms.
