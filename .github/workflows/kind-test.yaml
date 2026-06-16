@@ -4,6 +4,20 @@ on: pull_request
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Kubernetes node images to exercise the webhook against. kind runs a
+        # real apiserver, so a green matrix means the webhook works across these
+        # API server versions. These tags must be ones published for the kind
+        # release bundled with helm/kind-action below — bump them deliberately
+        # alongside that action. For full reproducibility, pin each to a digest
+        # (e.g. kindest/node:v1.33.1@sha256:...) and bump the digests on purpose.
+        node_image:
+          - kindest/node:v1.31.6
+          - kindest/node:v1.32.2
+          - kindest/node:v1.33.1
+          - kindest/node:v1.34.0
     steps:
       - uses: actions/checkout@v6
 
@@ -17,6 +31,7 @@ jobs:
         uses: helm/kind-action@v1.14.0
         with:
           cluster_name: kind
+          node_image: ${{ matrix.node_image }}
 
       - name: Build k8smultiarcher image
         env:
