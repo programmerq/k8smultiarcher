@@ -9,15 +9,16 @@ jobs:
       matrix:
         # Kubernetes node images to exercise the webhook against. kind runs a
         # real apiserver, so a green matrix means the webhook works across these
-        # API server versions. These tags must be ones published for the kind
-        # release bundled with helm/kind-action below — bump them deliberately
-        # alongside that action. For full reproducibility, pin each to a digest
-        # (e.g. kindest/node:v1.33.1@sha256:...) and bump the digests on purpose.
+        # API server versions. These digests are the prebuilt node images for
+        # kind v0.31.0, which is bundled with helm/kind-action@v1.14.0 below.
+        # Bump them together: when you bump the action, refresh these digests
+        # from the matching kind release notes.
         node_image:
-          - kindest/node:v1.31.6
-          - kindest/node:v1.32.2
-          - kindest/node:v1.33.1
-          - kindest/node:v1.34.0
+          - kindest/node:v1.31.14@sha256:6f86cf509dbb42767b6e79debc3f2c32e4ee01386f0489b3b2be24b0a55aac2b
+          - kindest/node:v1.32.11@sha256:5fc52d52a7b9574015299724bd68f183702956aa4a2116ae75a63cb574b35af8
+          - kindest/node:v1.33.7@sha256:d26ef333bdb2cbe9862a0f7c3803ecc7b4303d8cea8e814b481b09949d353040
+          - kindest/node:v1.34.3@sha256:08497ee19eace7b4b5348db5c6a1591d7752b164530a36f855cb0f2bdcbadd48
+          - kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
     steps:
       - uses: actions/checkout@v6
 
