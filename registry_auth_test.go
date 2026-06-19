@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -103,19 +102,13 @@ func TestIsNamespaceDisabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset the kubeClient singleton for each test
-			kubeClientOnce = sync.Once{}
-
-			// Execute the Once.Do to prevent getKubeClient from trying to initialize
-			kubeClientOnce.Do(func() {
-				// Create a fake clientset with the namespace if provided
-				if tt.nsToCreate != nil {
-					kubeClient = fake.NewSimpleClientset(tt.nsToCreate)
-				} else {
-					kubeClient = fake.NewSimpleClientset()
-				}
-				kubeClientErr = nil
-			})
+			// Inject a fake clientset (with the namespace if provided) via the
+			// kubeClientFactory seam; restored automatically after the subtest.
+			if tt.nsToCreate != nil {
+				withKubeClient(t, fake.NewSimpleClientset(tt.nsToCreate))
+			} else {
+				withKubeClient(t, fake.NewSimpleClientset())
+			}
 
 			got := IsNamespaceDisabled(context.Background(), tt.namespace)
 			if got != tt.expected {
@@ -126,14 +119,8 @@ func TestIsNamespaceDisabled(t *testing.T) {
 }
 
 func TestIsNamespaceDisabled_ClientError(t *testing.T) {
-	// Reset the kubeClient singleton
-	kubeClientOnce = sync.Once{}
-
-	// Execute the Once.Do to set up an error scenario
-	kubeClientOnce.Do(func() {
-		kubeClient = nil
-		kubeClientErr = errors.New("simulated client error")
-	})
+	// Simulate the Kubernetes client being unavailable.
+	withKubeClientErr(t, errors.New("simulated client error"))
 
 	// This should return false when client is unavailable
 	got := IsNamespaceDisabled(context.Background(), "test-ns")

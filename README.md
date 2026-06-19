@@ -74,6 +74,8 @@ Each mapping in the JSON array supports:
 - `operator` (optional): The toleration operator (default: "Equal")
 - `effect` (optional): The toleration effect (default: "NoSchedule")
 
+> **Validation:** A malformed `PLATFORM_TOLERATIONS` value causes the webhook to exit at startup rather than silently falling back to the simple env vars, so a typo can't quietly change behavior.
+
 #### How It Works
 
 1. When a Pod or DaemonSet is created, k8smultiarcher inspects all container images
@@ -164,6 +166,8 @@ NAMESPACE_SELECTOR='environment=production,team=platform'
 # Set-based selector
 NAMESPACE_SELECTOR='environment in (production,staging)'
 ```
+
+> **Validation:** An invalid `NAMESPACE_SELECTOR` causes the webhook to exit at startup rather than silently disabling filtering.
 
 **`NAMESPACES_TO_IGNORE`** - Skip specific namespaces (comma-separated list)
 
