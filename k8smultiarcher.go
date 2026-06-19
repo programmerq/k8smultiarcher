@@ -38,7 +38,9 @@ func main() {
 // newRouter builds the gin engine with all webhook routes registered.
 func newRouter() *gin.Engine {
 	r := gin.Default()
-	r.SetTrustedProxies(nil)
+	if err := r.SetTrustedProxies(nil); err != nil {
+		slog.Error("failed to disable trusted proxies", "error", err)
+	}
 	r.POST("/mutate", mutateHandler)
 	r.GET("/healthz", healthzHandler)
 	r.GET("/livez", livezHandler)
