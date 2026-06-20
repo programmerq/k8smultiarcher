@@ -2,7 +2,8 @@ name: Build and Publish multi-arch image to GHCR
 
 # This workflow builds multi-architecture container images for linux/amd64, linux/arm64, and linux/arm/v7.
 # On push to 'main', it publishes images tagged as 'main' and the commit SHA.
-# On push of version tags (v*), it publishes images tagged as 'latest' and the tag name.
+# On push of version tags (v*), it publishes images tagged as 'latest' and the tag name,
+# and creates a GitHub Release with auto-generated notes.
 # Images are published to ghcr.io under the repository owner's namespace.
 #
 # Future consideration: A separate workflow could rebuild and republish previous release tags
@@ -59,3 +60,20 @@ jobs:
           # Go version is sourced from go.mod so it is defined in a single place.
           build-args: |
             GO_VERSION=${{ steps.goversion.outputs.version }}
+
+  # On version tags, create a GitHub Release with auto-generated notes once the
+  # image has published. Skipped on 'main' pushes via the ref guard below.
+  github-release:
+    name: Create GitHub Release
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      # Release creation needs contents: write (overrides the workflow-level
+      # read-only contents permission for this job only).
+      contents: write
+    steps:
+      - name: Create release with generated notes
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
